@@ -56,22 +56,36 @@
       const next=dark?'light':'dark';document.documentElement.dataset.theme=next;store('csai-theme',next);
     });
 
-    /* Sidebar */
+    /* Sidebar. Tên chương bấm được: mở trang đọc cả chương (chuong.html?c=N).
+       Trên trang cả chương, các bài của chương đó trỏ tới vị trí trong trang và mỗi bài có mục lục riêng. */
     const side=document.getElementById('sidebar');
+    const chapPage=pageId==='chapter';
+    const chapN=chapPage?parseInt(new URLSearchParams(location.search).get('c'),10):0;
     if(side){
       let h='';
-      for(const ch of CHAPTERS){
-        h+=`<div class="nav-chapter"><div class="nav-chapter-title">${ch.name}</div>`;
+      CHAPTERS.forEach((ch,ci)=>{
+        const curCh=chapPage&&ci+1===chapN;
+        h+=`<div class="nav-chapter"><a class="nav-chapter-title${curCh?' current':''}" href="chuong.html?c=${ci+1}" title="Đọc cả chương">${ch.name}</a>`;
         for(const l of ch.lessons){
-          h+=`<a class="nav-lesson${l.id===pageId?' current':''}" href="${l.file}"><span class="num">${l.num}</span><span>${l.title}</span></a>`;
-          if(l.id===pageId)h+='<nav class="toc" aria-label="Mục lục bài"></nav>';
+          h+=`<a class="nav-lesson${l.id===pageId?' current':''}" data-lesson="${l.id}" href="${curCh?'#'+l.id:l.file}"><span class="num">${l.num}</span><span>${l.title}</span></a>`;
+          if(l.id===pageId||curCh)h+=`<nav class="toc" data-for="${l.id}" aria-label="Mục lục bài ${l.num}"></nav>`;
         }
         h+='</div>';
-      }
+      });
       side.innerHTML=`<nav aria-label="Các bài giảng">${h}</nav>`;
-      const toc=side.querySelector('.toc');
-      const heads=[...document.querySelectorAll('.content h2[id]')];
-      if(toc)heads.forEach(hd=>{const a=el('a',{href:'#'+hd.id});a.textContent=hd.textContent.replace(/^\s*\d+\s*/,'');const s=hd.querySelector('.sec');if(s)a.textContent=s.textContent+'. '+[...hd.childNodes].filter(n=>n!==s).map(n=>n.textContent).join('').trim();toc.append(a);});
+      let heads=[],links=[];
+      const fillToc=()=>{
+        side.querySelectorAll('.toc').forEach(t=>t.innerHTML='');
+        heads=[];links=[];
+        document.querySelectorAll('.content h2[id]').forEach(hd=>{
+          const sec=hd.closest('.ch-lesson');
+          const toc=sec?side.querySelector(`.toc[data-for="${sec.id}"]`):side.querySelector('.toc');
+          if(!toc)return;
+          const a=el('a',{href:'#'+hd.id});a.textContent=hd.textContent.replace(/^\s*\d+\s*/,'');const s=hd.querySelector('.sec');if(s)a.textContent=s.textContent+'. '+[...hd.childNodes].filter(n=>n!==s).map(n=>n.textContent).join('').trim();
+          toc.append(a);heads.push(hd);links.push(a);
+        });
+      };
+      fillToc();
       /* Ẩn/hiện thanh bên: máy tính thì thu gọn cột (nhớ lựa chọn), điện thoại thì mở dạng lớp phủ */
       const btn=top.querySelector('.side-btn');
       const mobile=()=>matchMedia('(max-width:820px)').matches;
@@ -86,16 +100,22 @@
         if(e.key==='Escape')close();
         if(e.key==='['&&!e.ctrlKey&&!e.metaKey&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))toggle();
       });
-      const links=[...side.querySelectorAll('.toc a')];
       const bar=top.querySelector('.progress');
+      const lessonLinks=chapPage?[...side.querySelectorAll('.nav-lesson[data-lesson]')]:[];
       let tick=false;
       function onScroll(){
         let idx=-1;heads.forEach((hd,i)=>{if(hd.getBoundingClientRect().top<140)idx=i;});
+        if(lessonLinks.length){
+          let curL='';document.querySelectorAll('.ch-lesson[id]').forEach(s=>{if(s.getBoundingClientRect().top<160)curL=s.id;});
+          lessonLinks.forEach(a=>a.classList.toggle('current',a.dataset.lesson===curL));
+          if(idx>=0&&heads[idx].closest('.ch-lesson')?.id!==curL)idx=-1;  /* mới sang bài khác: chưa tô mục nào */
+        }
         links.forEach((a,i)=>a.classList.toggle('active',i===idx));
         const d=document.documentElement;const p=d.scrollTop/(d.scrollHeight-d.clientHeight||1);bar.style.width=(Math.min(1,Math.max(0,p))*100)+'%';
         tick=false;
       }
       addEventListener('scroll',()=>{if(!tick){tick=true;requestAnimationFrame(onScroll);}},{passive:true});onScroll();
+      window.CSAI_refreshToc=()=>{fillToc();onScroll();};  /* trang cả chương gọi sau khi ghép bài */
     }
 
     /* Điều hướng cuối bài */
@@ -119,7 +139,7 @@
 
     /* Trang chủ: nút in cả chương ở góc mỗi thẻ chương */
     document.querySelectorAll('.road .ch').forEach((card,i)=>{
-      const a=el('a',{class:'icon-btn ch-print',href:`in-chuong.html?c=${i+1}&in=1`,target:'_blank',rel:'noopener',title:`In cả chương ${i+1}`,'aria-label':`In toàn bộ chương ${i+1}`},ICON_PRINT);
+      const a=el('a',{class:'icon-btn ch-print',href:`chuong.html?c=${i+1}&in=1`,target:'_blank',rel:'noopener',title:`In cả chương ${i+1}`,'aria-label':`In toàn bộ chương ${i+1}`},ICON_PRINT);
       card.append(a);
     });
 

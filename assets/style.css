@@ -370,7 +370,11 @@ details.quiz summary::before{color:var(--accent);font-weight:600}
 .ch-go:hover .arr,.ch-go:focus-visible .arr{opacity:1;transform:none}
 .road .ch a.l{position:relative;z-index:1}
 .road .ch:has(.ch-go:hover){border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
-/* trang in cả chương */
+/* tên chương trên thanh bên: bấm để đọc cả chương */
+a.nav-chapter-title{display:block;text-decoration:none;border-radius:6px;padding:2px 8px;margin-left:-8px}
+a.nav-chapter-title:hover{color:var(--accent);background:var(--surface-2)}
+a.nav-chapter-title.current{color:var(--accent)}
+/* trang cả chương */
 .chapter-cover .lessons{margin:.6rem 0 0;padding-left:1.2rem;font-family:var(--sans);font-size:.95rem}
 .ch-lesson{margin-top:4rem;padding-top:2.5rem;border-top:1px solid var(--line-2)}
 .ch-status{font-family:var(--sans);color:var(--muted)}
