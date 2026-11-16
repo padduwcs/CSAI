@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>1.1 Hồi quy và phân loại tuyến tính · CSAI</title>
+<meta name="description" content="Bài 1.1: học máy là gì, hồi quy tuyến tính, phân loại tuyến tính, hàm mất mát và gradient descent — giảng bằng tiếng Việt cho người mới.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/katex/katex.min.css"><link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/vendor/katex/katex.min.js"></script><script defer src="assets/vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="assets/site.js"></script><script defer src="assets/sim.js"></script>
+</head>
+<body data-page="ml-1">
+<div class="layout"><aside class="sidebar" id="sidebar"></aside>
+<main class="page" id="main"><article class="content">
+
+<header class="hero">
+  <div class="eyebrow">Chương 1 · Học máy · Bài 1</div>
+  <h1>Hồi quy và phân loại tuyến tính</h1>
+  <p class="lead">Thay vì tự viết luật cho máy, ta đưa cho máy các ví dụ có đáp án và để nó tự tìm luật. Bài này dựng toàn bộ khung tư duy của học máy trên hai bài toán đơn giản nhất: dự đoán một con số (hồi quy) và dự đoán một nhãn đúng/sai (phân loại).</p>
+  <div class="meta">
+    <div><h4>Bạn sẽ hiểu</h4><ul><li>Học máy gồm những thành phần nào</li><li>Loss đo “sai bao nhiêu” ra sao</li><li>Gradient descent tìm tham số tốt như thế nào</li><li>Vì sao phân loại cần hinge/logistic loss</li></ul></div>
+    <div><h4>Cần biết trước</h4><p style="margin:0">Không cần nền tảng gì thêm. Vector, tích vô hướng và đạo hàm sẽ được giải thích ngay khi cần đến.</p></div>
+  </div>
+</header>
+
+<h2 id="vi-tri"><span class="sec">1</span>Học máy nằm ở đâu trong AI?</h2>
+
+<p>Môn học này (theo Stanford CS221) nhìn AI qua một câu hỏi: <em>làm sao biến một bài toán thực tế thành thứ máy tính giải được?</em> Cách làm chung gồm ba bước. Ta <strong>mô hình hóa</strong> (<span class="en">modeling</span>) thế giới thành một mô hình toán học, <strong>suy luận</strong> (<span class="en">inference</span>) trên mô hình để trả lời câu hỏi, và <strong>học</strong> (<span class="en">learning</span>) các thông số của mô hình từ dữ liệu thay vì tự điền tay.</p>
+
+<p>Các mô hình trong môn được xếp từ đơn giản đến phức tạp. Hình dưới đây là “bản đồ” của cả môn; bốn chương ta học tương ứng với hai bậc đầu.</p>
+
+<figure class="fig">
+<svg viewBox="0 0 720 200" role="img" aria-label="Thang các loại mô hình trong AI">
+  <defs><marker id="m1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" class="arrow-head"/></marker></defs>
+  <line x1="30" y1="170" x2="690" y2="170" class="ln-ink" marker-end="url(#m1a)"/>
+  <text x="30" y="192" class="t-small t-muted">Mức thấp (gần phản xạ)</text><text x="690" y="192" text-anchor="end" class="t-small t-muted">Mức cao (gần suy nghĩ của con người)</text>
+  <rect x="30" y="40" width="150" height="110" rx="12" class="nd-acc"/>
+  <text x="105" y="70" text-anchor="middle" class="t-b">Mô hình phản xạ</text><text x="105" y="88" text-anchor="middle" class="t-small t-muted">reflex</text>
+  <text x="105" y="114" text-anchor="middle" class="t-small">Học máy</text><text x="105" y="132" text-anchor="middle" class="t-small t-acc t-b">Chương 1</text>
+  <rect x="200" y="40" width="190" height="110" rx="12" class="nd-ok"/>
+  <text x="295" y="70" text-anchor="middle" class="t-b">Mô hình trạng thái</text><text x="295" y="88" text-anchor="middle" class="t-small t-muted">state-based</text>
+  <text x="295" y="114" text-anchor="middle" class="t-small">Search · MDP · Games</text><text x="295" y="132" text-anchor="middle" class="t-small t-ok t-b">Chương 2 · 3 · 4</text>
+  <rect x="410" y="40" width="140" height="110" rx="12" class="nd-soft"/>
+  <text x="480" y="70" text-anchor="middle" class="t-b">Mô hình biến</text><text x="480" y="88" text-anchor="middle" class="t-small t-muted">variable-based</text>
+  <text x="480" y="114" text-anchor="middle" class="t-small t-muted">CSP · Bayes net</text>
+  <rect x="570" y="40" width="120" height="110" rx="12" class="nd-soft"/>
+  <text x="630" y="70" text-anchor="middle" class="t-b">Logic</text><text x="630" y="88" text-anchor="middle" class="t-small t-muted">logic</text>
+  <text x="630" y="114" text-anchor="middle" class="t-small t-muted">suy diễn</text>
+</svg>
+<figcaption><b>Thang mô hình của CS221.</b> Mô hình phản xạ nhận đầu vào và trả lời ngay sau một số phép tính cố định, không “suy tính trước”. Mô hình trạng thái thì tính trước nhiều bước: tìm đường, ra quyết định khi có rủi ro, chơi với đối thủ. Học máy xuất hiện ở mọi bậc, vì bậc nào cũng có thông số cần học từ dữ liệu. Vì thế ta học nó đầu tiên.</figcaption>
+</figure>
+
+<h2 id="bai-toan-du-doan"><span class="sec">2</span>Bài toán dự đoán</h2>
+
+<div class="box problem"><div class="box-h">Vấn đề thực tế</div>
+<p>Một ngân hàng muốn biết một giao dịch thẻ có phải gian lận không. Không ai viết nổi một bộ luật “nếu… thì…” bao quát hết mọi kiểu gian lận. Nhưng ngân hàng có hàng triệu giao dịch cũ đã được xác minh là gian lận hay không. Liệu máy có thể <em>tự rút ra quy luật</em> từ các ví dụ cũ đó để phán đoán giao dịch mới?</p>
+</div>
+
+<p>Bài toán đó có dạng chung: có một <strong>đầu vào</strong> \(x\) (giao dịch) và cần một <strong>đầu ra</strong> \(y\) (gian lận hay không). Ta muốn có một hàm \(f\), gọi là <dfn>bộ dự đoán</dfn> (<span class="en">predictor</span>), nhận \(x\) và trả về dự đoán \(\hat y = f(x)\). Dấu mũ trên \(\hat y\) (đọc là “y mũ”) dùng để chỉ <em>giá trị dự đoán</em>, phân biệt với đáp án thật \(y\).</p>
+
+<p>Tùy vào kiểu của \(y\), bài toán có tên khác nhau:</p>
+
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Kiểu đầu ra \(y\)</th><th>Tên bài toán</th><th>Ví dụ</th></tr>
+<tr><td>Một số thực, ví dụ \(3.7\)</td><td><b>Hồi quy</b> (<span class="en">regression</span>)</td><td>Giá nhà, thời gian giao hàng</td></tr>
+<tr><td>Một trong hai nhãn \(\{+1,-1\}\)</td><td><b>Phân loại nhị phân</b> (<span class="en">binary classification</span>)</td><td>Gian lận / không, thư rác / không</td></tr>
+<tr><td>Một trong \(K\) nhãn</td><td><b>Phân loại đa lớp</b> (<span class="en">multiclass</span>)</td><td>Chữ số viết tay 0–9</td></tr>
+<tr><td>Một đối tượng phức tạp</td><td><b>Dự đoán có cấu trúc</b> (<span class="en">structured prediction</span>)</td><td>Dịch cả một câu</td></tr>
+</table></div>
+
+<p>Máy không tự nhiên mà có \(f\). Ta đưa cho nó một <dfn>tập huấn luyện</dfn> (<span class="en">training data</span>) gồm các cặp \((x, y)\) đã biết đáp án. Một <dfn>thuật toán học</dfn> (<span class="en">learning algorithm</span>) đọc tập này và tạo ra \(f\). Sau đó \(f\) được dùng cho các đầu vào mới chưa có đáp án.</p>
+
+<figure class="fig">
+<svg viewBox="0 0 720 210" role="img" aria-label="Quy trình học và dự đoán">
+  <defs><marker id="m1b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" class="arrow-head"/></marker></defs>
+  <text x="20" y="22" class="t-small t-muted t-b">GIAI ĐOẠN HỌC (làm một lần, có thể lâu)</text>
+  <rect x="20" y="36" width="190" height="64" rx="10" class="nd-soft"/>
+  <text x="115" y="62" text-anchor="middle" class="t-b">Tập huấn luyện</text><text x="115" y="82" text-anchor="middle" class="t-small t-muted">(x₁,y₁), (x₂,y₂), …</text>
+  <line x1="212" y1="68" x2="268" y2="68" class="ln-ink" marker-end="url(#m1b)"/>
+  <rect x="272" y="36" width="170" height="64" rx="10" class="nd-violet"/>
+  <text x="357" y="62" text-anchor="middle" class="t-b">Thuật toán học</text><text x="357" y="82" text-anchor="middle" class="t-small t-muted">tìm tham số w</text>
+  <line x1="444" y1="68" x2="500" y2="68" class="ln-ink" marker-end="url(#m1b)"/>
+  <rect x="504" y="36" width="190" height="64" rx="10" class="nd-acc"/>
+  <text x="599" y="62" text-anchor="middle" class="t-b">Bộ dự đoán f</text><text x="599" y="82" text-anchor="middle" class="t-small t-muted">predictor</text>
+  <line x1="599" y1="102" x2="599" y2="140" class="ln-dash" marker-end="url(#m1b)"/>
+  <text x="20" y="132" class="t-small t-muted t-b">GIAI ĐOẠN DỰ ĐOÁN (suy diễn, rất nhanh)</text>
+  <rect x="300" y="146" width="150" height="50" rx="10" class="nd"/>
+  <text x="375" y="176" text-anchor="middle">x mới</text>
+  <line x1="452" y1="171" x2="520" y2="171" class="ln-ink" marker-end="url(#m1b)"/>
+  <rect x="524" y="146" width="150" height="50" rx="10" class="nd-acc"/>
+  <text x="599" y="176" text-anchor="middle" class="t-b">f(x) = ŷ</text>
+</svg>
+<figcaption><b>Học và dự đoán là hai giai đoạn khác nhau.</b> Lúc học, thuật toán dùng dữ liệu có đáp án để chọn ra bộ dự đoán \(f\). Lúc dùng, \(f\) chỉ cần tính một biểu thức cho đầu vào mới. Đây chính là “mô hình phản xạ”: không tìm kiếm, không cân nhắc nhiều bước.</figcaption>
+</figure>
+
+<h3>Ba câu hỏi thiết kế</h3>
+<p>Mọi phương pháp học máy trong môn đều trả lời ba câu hỏi. Ghi nhớ ba câu hỏi này sẽ giúp bạn không lạc khi gặp phương pháp mới, vì phương pháp mới thường chỉ thay đổi câu trả lời cho <em>một</em> trong ba câu.</p>
+<div class="flow"><span class="on">① Lớp giả thuyết: \(f\) được phép có dạng nào?</span><i>→</i><span class="on">② Hàm mất mát: \(f\) tốt hay dở đến đâu?</span><i>→</i><span class="on">③ Thuật toán tối ưu: tìm \(f\) tốt nhất bằng cách nào?</span></div>
+<p>Ta sẽ trả lời lần lượt ba câu hỏi này, trước hết cho hồi quy.</p>
+
+<h2 id="hoi-quy"><span class="sec">3</span>Hồi quy tuyến tính</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Ta có ba điểm dữ liệu \((x, y)\): \((1, 1)\), \((2, 3)\), \((4, 3)\). Ví dụ \(x\) là diện tích (chục m²), \(y\) là giá nhà (tỉ đồng). Một căn nhà mới có \(x = 3\). Nên dự đoán giá bao nhiêu?</p>
+</div>
+
+<p>Nhìn ba điểm, ta thấy \(y\) có xu hướng tăng khi \(x\) tăng. Một cách tự nhiên là vẽ một <strong>đường thẳng</strong> đi “gần” cả ba điểm, rồi đọc giá trị của đường đó tại \(x = 3\). Hồi quy tuyến tính chỉ là phiên bản toán học hóa của trực giác này. Ta trả lời ba câu hỏi thiết kế.</p>
+
+<h3>① Lớp giả thuyết: các đường thẳng</h3>
+<p>Một đường thẳng có dạng \(\hat y = w_0 + w_1 x\). Trong đó \(w_1\) là <strong>độ dốc</strong> (tăng \(x\) thêm 1 thì \(\hat y\) tăng thêm \(w_1\)), còn \(w_0\) là <strong>hệ số chặn</strong> (giá trị của \(\hat y\) khi \(x = 0\)). Mỗi cặp số \((w_0, w_1)\) cho một đường khác nhau. Tập hợp mọi đường như vậy gọi là <dfn>lớp giả thuyết</dfn> (<span class="en">hypothesis class</span>). Học nghĩa là chọn ra <em>một</em> đường trong lớp đó.</p>
+
+<p>Để công thức gọn và mở rộng được cho nhiều đầu vào, CS221 viết nó dưới dạng <em>tích vô hướng</em> của hai vector. Trước hết, hãy làm quen với hai khái niệm này.</p>
+
+<div class="box math"><div class="box-h">Toán nền · Vector và tích vô hướng</div>
+<p>Một <dfn>vector</dfn> chỉ đơn giản là một danh sách số có thứ tự, ví dụ \(a = [2, 5]\). Số phần tử là <em>số chiều</em> của vector.</p>
+<p><dfn>Tích vô hướng</dfn> (<span class="en">dot product</span>) của hai vector cùng số chiều được tính bằng cách nhân từng cặp phần tử ở cùng vị trí rồi cộng tất cả lại:</p>
+\[a \cdot b = a_1 b_1 + a_2 b_2 + \dots + a_d b_d.\]
+<p>Ví dụ: \([2, 5] \cdot [3, -1] = 2\times 3 + 5 \times (-1) = 1\). Kết quả là <em>một con số</em>, không phải vector.</p>
+</div>
+
+<p>Ta đóng gói đầu vào thành <dfn>vector đặc trưng</dfn> (<span class="en">feature vector</span>) \(\phi(x) = [1, x]\) (\(\phi\) đọc là “phi”), và gom tham số thành <dfn>vector trọng số</dfn> (<span class="en">weight vector</span>) \(w = [w_0, w_1]\). Khi đó:</p>
+\[f_w(x) = w \cdot \phi(x) = w_0 \cdot 1 + w_1 \cdot x.\]
+<p>Số 1 cố định ở đầu \(\phi(x)\) có vẻ thừa, nhưng chính nó nhân với \(w_0\) để tạo ra hệ số chặn. Nhờ viết như vậy, nếu sau này có thêm thông tin (số phòng, khoảng cách tới trung tâm…), ta chỉ cần thêm phần tử vào \(\phi(x)\) và \(w\), còn công thức \(w \cdot \phi(x)\) giữ nguyên. Đặc trưng nói “nhìn vào cái gì”; trọng số nói “cái đó quan trọng bao nhiêu”.</p>
+
+<h3>② Hàm mất mát: đo xem một đường tệ đến đâu</h3>
+<p>Có vô số đường thẳng. Muốn máy tự chọn, ta phải cho nó một cách <em>chấm điểm bằng số</em>. Hãy so hai đường ứng viên trong hình:</p>
+
+<figure class="fig">
+<svg viewBox="0 0 420 280" role="img" aria-label="Ba điểm dữ liệu và hai đường thẳng ứng viên">
+  <g class="grid"><line x1="40" y1="250" x2="390" y2="250"/><line x1="40" y1="195" x2="390" y2="195"/><line x1="40" y1="140" x2="390" y2="140"/><line x1="40" y1="85" x2="390" y2="85"/><line x1="40" y1="30" x2="390" y2="30"/>
+  <line x1="40" y1="30" x2="40" y2="250"/><line x1="110" y1="30" x2="110" y2="250"/><line x1="180" y1="30" x2="180" y2="250"/><line x1="250" y1="30" x2="250" y2="250"/><line x1="320" y1="30" x2="320" y2="250"/><line x1="390" y1="30" x2="390" y2="250"/></g>
+  <text x="40" y="268" text-anchor="middle" class="t-small t-muted">0</text><text x="110" y="268" text-anchor="middle" class="t-small t-muted">1</text><text x="180" y="268" text-anchor="middle" class="t-small t-muted">2</text><text x="250" y="268" text-anchor="middle" class="t-small t-muted">3</text><text x="320" y="268" text-anchor="middle" class="t-small t-muted">4</text><text x="390" y="268" text-anchor="middle" class="t-small t-muted">5 x</text>
+  <text x="30" y="254" text-anchor="end" class="t-small t-muted">0</text><text x="30" y="199" text-anchor="end" class="t-small t-muted">1</text><text x="30" y="144" text-anchor="end" class="t-small t-muted">2</text><text x="30" y="89" text-anchor="end" class="t-small t-muted">3</text><text x="30" y="34" text-anchor="end" class="t-small t-muted">4 y</text>
+  <line x1="40" y1="250" x2="320" y2="30" class="ln-dash" style="stroke:var(--chance);stroke-width:2.2"/>
+  <line x1="40" y1="195" x2="390" y2="38.3" class="ln-acc"/>
+  <line x1="110" y1="195" x2="110" y2="163.7" class="ln-min" stroke-dasharray="3 3"/><line x1="180" y1="85" x2="180" y2="132.3" class="ln-min" stroke-dasharray="3 3"/><line x1="320" y1="85" x2="320" y2="69.6" class="ln-min" stroke-dasharray="3 3"/>
+  <circle cx="110" cy="195" r="6" class="f-ink"/><circle cx="180" cy="85" r="6" class="f-ink"/><circle cx="320" cy="85" r="6" class="f-ink"/>
+  <line x1="250" y1="250" x2="250" y2="101" class="ln-dash"/><circle cx="250" cy="101" r="5" class="f-acc"/>
+  <text x="258" y="114" class="t-small t-acc t-b">x = 3 → ŷ ≈ 2.71</text>
+  <text x="312" y="22" text-anchor="end" class="t-small t-ch t-b">w = [0, 1]</text>
+  <text x="396" y="26" text-anchor="end" class="t-small t-acc t-b">w = [1, 0.57]</text>
+</svg>
+<figcaption><b>Hai ứng viên.</b> Đường cam đứt là \(\hat y = x\) (\(w = [0,1]\)). Đường xanh là \(\hat y = 1 + 0.57x\) (\(w = [1, 0.57]\)). Các đoạn đỏ đứt là <em>sai số</em> của đường xanh tại từng điểm. Đường xanh có vẻ gần cả ba điểm hơn. Để khẳng định điều đó bằng số, ta cần hàm mất mát.</figcaption>
+</figure>
+
+<p>Tại mỗi điểm, chênh lệch giữa dự đoán và đáp án gọi là <dfn>phần dư</dfn> (<span class="en">residual</span>): \(f_w(x) - y\). Phần dư có thể âm hoặc dương. Ta muốn một con số luôn không âm và càng lớn khi sai càng nhiều, nên bình phương nó lên. Kết quả là <dfn>squared loss</dfn> (mất mát bình phương):</p>
+\[\text{Loss}(x, y, w) = \big(\underbrace{w\cdot\phi(x)}_{\text{dự đoán}} - \underbrace{y}_{\text{đáp án}}\big)^2.\]
+<p>Một điểm chưa nói lên gì nhiều. Ta muốn đường tốt trên <em>cả tập</em>, nên lấy trung bình loss của mọi điểm trong tập huấn luyện \(\mathcal D_{\text{train}}\). Đại lượng này gọi là <dfn>TrainLoss</dfn>:</p>
+\[\text{TrainLoss}(w) = \frac{1}{|\mathcal D_{\text{train}}|}\sum_{(x,y)\in\mathcal D_{\text{train}}} \text{Loss}(x,y,w).\]
+<p>Ký hiệu \(\sum\) (sigma) nghĩa là “cộng lần lượt cho mọi phần tử”, còn \(|\mathcal D_{\text{train}}|\) là số ví dụ, ở đây bằng 3. Giờ ta tính thử cho hai đường:</p>
+
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Điểm \((x,y)\)</th><th class="n">Dự đoán của \([0,1]\)</th><th class="n">Loss</th><th class="n">Dự đoán của \([1, 0.57]\)</th><th class="n">Loss</th></tr>
+<tr><td>\((1, 1)\)</td><td class="n">1</td><td class="n">\((1-1)^2 = 0\)</td><td class="n">1.57</td><td class="n">\(0.57^2 = 0.325\)</td></tr>
+<tr><td>\((2, 3)\)</td><td class="n">2</td><td class="n">\((2-3)^2 = 1\)</td><td class="n">2.14</td><td class="n">\(0.86^2 = 0.740\)</td></tr>
+<tr><td>\((4, 3)\)</td><td class="n">4</td><td class="n">\((4-3)^2 = 1\)</td><td class="n">3.28</td><td class="n">\(0.28^2 = 0.078\)</td></tr>
+<tr class="good"><td><b>TrainLoss</b></td><td></td><td class="n"><b>2/3 ≈ 0.667</b></td><td></td><td class="n"><b>≈ 0.381</b></td></tr>
+</table></div>
+
+<p>Đường xanh có TrainLoss nhỏ hơn, đúng như mắt ta thấy. Lưu ý đường cam đi qua đúng điểm \((1,1)\) nhưng vẫn thua, vì squared loss nhìn <em>tổng thể</em> chứ không thưởng riêng cho việc khớp hoàn hảo một điểm. Việc bình phương cũng làm sai số lớn bị phạt nặng hơn nhiều so với sai số nhỏ: sai 2 bị phạt 4, gấp bốn lần sai 1.</p>
+
+<div class="box def"><div class="box-h">Mục tiêu học</div>
+<p>Học = tìm \(w\) làm TrainLoss nhỏ nhất: \(\displaystyle \min_{w}\ \text{TrainLoss}(w)\). Bài toán học đã biến thành <strong>bài toán tối ưu</strong>.</p>
+</div>
+
+<h3>③ Thuật toán tối ưu: gradient descent</h3>
+<p>Ta không thể thử mọi giá trị \(w\), vì có vô số. Hãy hình dung TrainLoss như một <strong>thung lũng</strong>: mỗi vị trí \(w\) có một độ cao, chính là loss. Bạn đứng ở đâu đó trên sườn, mắt bị bịt, và muốn xuống đáy. Cách hợp lý là dò xem dưới chân dốc về phía nào, rồi bước một bước theo hướng xuống dốc. Lặp lại cho đến khi mặt đất phẳng. Đó là toàn bộ ý tưởng của <dfn>gradient descent</dfn> (hạ gradient). Để làm được, ta cần một công cụ đo “độ dốc”: đạo hàm.</p>
+
+<div class="box math"><div class="box-h">Toán nền · Đạo hàm và gradient</div>
+<p><dfn>Đạo hàm</dfn> của hàm một biến \(g(w)\) tại một điểm cho biết: nếu tăng \(w\) thêm một chút, \(g\) thay đổi nhanh cỡ nào và theo chiều nào. Ví dụ \(g(w) = (w-3)^2\) có đạo hàm \(g'(w) = 2(w-3)\), theo quy tắc “đạo hàm của \(u^2\) là \(2u\cdot u'\)”. Tại \(w = 0\), \(g'(0) = -6\) là số âm, nghĩa là tăng \(w\) thì \(g\) <em>giảm</em>. Vậy muốn giảm \(g\), ta nên tăng \(w\), tức là đi <strong>ngược dấu</strong> đạo hàm.</p>
+<p>Khi hàm có nhiều biến \(w = [w_0, w_1, \dots]\), ta lấy đạo hàm theo từng biến (coi các biến khác là hằng số) và xếp thành một vector, gọi là <dfn>gradient</dfn> \(\nabla_w g\) (ký hiệu \(\nabla\) đọc là “nabla”). Gradient chỉ hướng làm hàm <em>tăng</em> nhanh nhất, nên \(-\nabla_w g\) là hướng xuống dốc nhanh nhất.</p>
+</div>
+
+<figure class="fig">
+<svg viewBox="0 0 440 250" role="img" aria-label="Gradient descent trên một parabol">
+  <defs><marker id="m1c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" class="f-acc"/></marker></defs>
+  <line x1="30" y1="220" x2="420" y2="220" class="grid"/>
+  <path d="M40,28 L62.5,73 L85,112 L107.5,145 L130,172 L152.5,193 L175,208 L197.5,217 L220,220 L242.5,217 L265,208 L287.5,193 L310,172 L332.5,145 L355,112 L377.5,73 L400,28" class="ln-ink"/>
+  <line x1="45" y1="76" x2="125" y2="148" class="ln-dash" style="stroke:var(--min)"/>
+  <text x="128" y="122" class="t-small t-min">độ dốc g'(0) = −6</text>
+  <circle cx="85" cy="112" r="6" class="f-acc"/><circle cx="152.5" cy="193" r="6" class="f-acc"/><circle cx="186.25" cy="213.25" r="5" class="f-acc"/><circle cx="203.1" cy="218.3" r="4" class="f-acc"/>
+  <path d="M88,120 Q115,170 147,189" class="ln-acc" marker-end="url(#m1c)" style="stroke-width:2"/>
+  <path d="M157,199 Q170,212 181,212" class="ln-acc" marker-end="url(#m1c)" style="stroke-width:2"/>
+  <text x="74" y="116" text-anchor="end" class="t-small t-b">w=0</text><text x="142" y="208" text-anchor="end" class="t-small t-b">1.5</text><text x="180" y="238" text-anchor="middle" class="t-small t-b">2.25</text>
+  <text x="236" y="238" class="t-small t-muted">đáy: w = 3</text>
+  <text x="150" y="40" class="t-small t-muted">g(w) = (w − 3)²,  η = 0.25</text>
+</svg>
+<figcaption><b>Gradient descent trên hàm một biến.</b> Bắt đầu tại \(w=0\), đạo hàm bằng \(-6\). Bước cập nhật là \(w \leftarrow 0 - 0.25\times(-6) = 1.5\). Tại \(1.5\), đạo hàm còn \(-3\), nên \(w \leftarrow 1.5 + 0.75 = 2.25\). Càng gần đáy, dốc càng thoải nên bước càng ngắn, và \(w\) tiến dần về \(3\). Hệ số \(\eta = 0.25\) là độ dài bước.</figcaption>
+</figure>
+
+<p>Thuật toán viết gọn như sau. Số \(\eta\) (đọc là “eta”) gọi là <dfn>tốc độ học</dfn> (<span class="en">learning rate</span> hay <span class="en">step size</span>):</p>
+
+<div class="algo"><div class="algo-h">Gradient descent <small>tối ưu TrainLoss(w)</small></div>
+<pre><code>khởi tạo w = [0, …, 0]
+lặp T lần:
+    w ← w − η · ∇<sub>w</sub> TrainLoss(w)     <span class="c"># bước ngược hướng gradient</span></code></pre></div>
+
+<p>Với squared loss, gradient tính được rất gọn. Áp dụng quy tắc \((u^2)' = 2u\cdot u'\) với \(u = w\cdot\phi(x) - y\). Đạo hàm của \(u\) theo \(w\) chính là \(\phi(x)\), vì \(w\cdot\phi(x) = w_0\cdot 1 + w_1 x\): đạo hàm theo \(w_0\) bằng 1, đạo hàm theo \(w_1\) bằng \(x\). Ta được:</p>
+\[\nabla_w \text{Loss}(x,y,w) = 2\,\underbrace{(w\cdot\phi(x) - y)}_{\text{phần dư}}\;\phi(x).\]
+<p>Công thức này có nghĩa trực giác rõ ràng. Nếu dự đoán <em>quá cao</em> (phần dư dương), gradient cùng hướng với \(\phi(x)\), và việc trừ gradient kéo \(w\cdot\phi(x)\) xuống. Nếu dự đoán quá thấp thì ngược lại. Sai càng nhiều, bước sửa càng mạnh. Gradient của TrainLoss là trung bình các gradient này trên mọi điểm.</p>
+
+<div class="box example"><div class="box-h">Ví dụ · Tính tay một bước</div>
+<p>Bắt đầu từ \(w = [0, 0]\), \(\eta = 0.1\). Mọi dự đoán đều bằng 0, nên phần dư của ba điểm là \(0-1=-1\), \(0-3=-3\), \(0-3=-3\).</p>
+<p>Gradient \(= \frac{2}{3}\big[(-1)[1,1] + (-3)[1,2] + (-3)[1,4]\big] = \frac23[-7,\ -19] \approx [-4.667,\ -12.667]\).</p>
+<p>Cập nhật: \(w \leftarrow [0,0] - 0.1\times[-4.667, -12.667] = [0.467,\ 1.267]\). TrainLoss giảm từ \(6.333\) xuống \(2.319\).</p>
+<p>Gradient âm ở cả hai thành phần vì đường đang nằm <em>dưới</em> mọi điểm. Trừ đi một số âm làm cả hai trọng số tăng, đường được nhấc lên và dốc hơn. Đúng như ta mong đợi.</p>
+</div>
+
+<p>Hãy tự chạy thuật toán. Bắt đầu với \(\eta = 0.1\), rồi thử kéo \(\eta\) lên trên \(0.13\) để thấy chuyện gì xảy ra khi bước quá dài.</p>
+
+<div class="sim" data-sim="gd"><script type="application/json">{"title":"Gradient descent cho hồi quy tuyến tính","sub":"Dữ liệu (1,1), (2,3), (4,3); đặc trưng φ(x) = [1, x]","points":[[1,1],[2,3],[4,3]],"eta":0.1,"etaMax":0.3,"xr":[0,5],"yr":[0,5]}</script></div>
+
+<p>Bạn sẽ thấy đường thẳng dần tiến về \(\hat y \approx 1 + 0.571x\). Đây đúng là đường tối ưu, với TrainLoss \(\approx 0.381\). Khi \(\eta\) quá lớn, mỗi bước nhảy vượt qua đáy thung lũng sang sườn bên kia, cao hơn chỗ cũ, và loss bùng nổ. Khi \(\eta\) quá nhỏ, thuật toán đúng nhưng chậm. Chọn \(\eta\) là việc cân bằng giữa hai cực đó.</p>
+
+<h3>Stochastic gradient descent (SGD)</h3>
+<p>Mỗi bước gradient descent phải duyệt <em>toàn bộ</em> tập huấn luyện để lấy trung bình gradient. Với vài triệu ví dụ, một bước đã rất tốn kém. <dfn>SGD</dfn> (hạ gradient ngẫu nhiên) chọn cách “sửa ngay sau mỗi ví dụ”:</p>
+<div class="algo"><div class="algo-h">Stochastic gradient descent</div>
+<pre><code>lặp T lượt:
+    với mỗi (x, y) trong tập huấn luyện:
+        w ← w − η · ∇<sub>w</sub> Loss(x, y, w)     <span class="c"># chỉ dùng MỘT ví dụ</span></code></pre></div>
+<p>Gradient của một ví dụ là một ước lượng “nhiễu” của gradient trung bình. Từng bước không chính xác, nhưng vì cập nhật rất thường xuyên, SGD thường tiến nhanh hơn nhiều trên dữ liệu lớn. Trong mô phỏng ở trên, chọn “SGD” để thấy đường thẳng giật theo từng điểm. Điểm vừa được dùng sẽ tô đỏ. Trong thực tế, người ta hay giảm dần \(\eta\) theo thời gian, ví dụ \(\eta = 1/\sqrt{\text{số lần cập nhật}}\), để những dao động cuối cùng lắng xuống.</p>
+
+<div class="box pitfall"><div class="box-h">Dễ nhầm · GD và SGD</div>
+<p><b>GD</b> dùng gradient trên <em>toàn bộ</em> dữ liệu cho mỗi bước, nên mỗi bước chính xác nhưng đắt. <b>SGD</b> dùng gradient của <em>một</em> ví dụ, nên mỗi bước rẻ nhưng nhiễu. Cả hai cùng tối ưu một mục tiêu (TrainLoss) và chỉ khác cách ước lượng hướng đi. Ở giữa là <em>mini-batch</em>: mỗi bước dùng một nhóm nhỏ ví dụ.</p>
+</div>
+
+<h2 id="phan-loai"><span class="sec">4</span>Phân loại tuyến tính</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Giờ đầu ra chỉ là một nhãn \(y \in \{+1, -1\}\), ví dụ “thư rác” (\(-1\)) hay “thư thường” (\(+1\)). Đầu vào là hai con số đặc trưng \(\phi(x) = [x_1, x_2]\). Làm sao dùng lại toàn bộ bộ máy vừa học (tích vô hướng, loss, gradient) cho một đầu ra chỉ có hai giá trị?</p>
+</div>
+
+<h3>① Lớp giả thuyết: điểm số và dấu</h3>
+<p>Ý tưởng là vẫn tính một con số \(w\cdot\phi(x)\), gọi là <dfn>điểm số</dfn> (<span class="en">score</span>), rồi chỉ xem <strong>dấu</strong> của nó. Điểm số dương thì đoán \(+1\), âm thì đoán \(-1\):</p>
+\[f_w(x) = \operatorname{sign}\big(w\cdot\phi(x)\big).\]
+<p>Điểm số còn cho biết mức độ <em>tự tin</em>: điểm \(+5\) “chắc chắn \(+1\)” hơn nhiều so với điểm \(+0.1\). Những điểm có \(w\cdot\phi(x) = 0\) nằm trên ranh giới giữa hai phe, gọi là <dfn>biên quyết định</dfn> (<span class="en">decision boundary</span>). Với hai đặc trưng, biên này là một đường thẳng.</p>
+
+<figure class="fig">
+<svg viewBox="0 0 400 330" role="img" aria-label="Biên quyết định của bộ phân loại tuyến tính">
+  <defs><marker id="m1d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" class="f-violet"/></marker></defs>
+  <polygon points="50,310 350,10 50,10" style="fill:var(--accent);fill-opacity:.09"/>
+  <polygon points="50,310 350,10 350,310" style="fill:var(--min);fill-opacity:.09"/>
+  <rect x="50" y="10" width="300" height="300" fill="none" class="grid"/>
+  <g class="grid"><line x1="50" y1="160" x2="350" y2="160"/><line x1="200" y1="10" x2="200" y2="310"/></g>
+  <text x="344" y="152" text-anchor="end" class="t-small t-muted">x₁</text><text x="208" y="26" class="t-small t-muted">x₂</text>
+  <line x1="50" y1="310" x2="350" y2="10" class="ln-ink" style="stroke-width:2"/>
+  <text x="96" y="252" transform="rotate(-45 96 252)" class="t-small t-muted">biên: w·φ(x) = 0</text>
+  <line x1="200" y1="160" x2="142" y2="102" style="stroke:var(--violet);stroke-width:2.6" marker-end="url(#m1d)"/>
+  <text x="104" y="92" text-anchor="middle" class="t-small t-b" style="fill:var(--violet)">w = [−0.6, 0.6]</text>
+  <text x="64" y="36" class="t-acc t-b">vùng đoán +1</text><text x="336" y="294" text-anchor="end" class="t-min t-b">vùng đoán −1</text>
+  <circle cx="200" cy="60" r="7" class="f-acc"/><text x="188" y="64" text-anchor="end" class="t-small t-b">A (+1)</text>
+  <circle cx="100" cy="160" r="7" class="f-acc"/><text x="100" y="184" text-anchor="middle" class="t-small t-b">B (+1)</text>
+  <rect x="243" y="203" width="14" height="14" class="f-min"/><text x="266" y="214" class="t-small t-b">C (−1)</text>
+  <rect x="243" y="53" width="14" height="14" class="f-min"/><text x="250" y="42" text-anchor="middle" class="t-small t-b t-min">D (−1): sai</text>
+</svg>
+<figcaption><b>Hình học của phân loại tuyến tính.</b> Vector trọng số \(w\) (mũi tên tím) luôn <em>vuông góc</em> với biên quyết định và chỉ về phía vùng được đoán \(+1\). Lý do: tích vô hướng dương khi điểm nằm “cùng phía” với \(w\). Hình tròn xanh có nhãn thật \(+1\), hình vuông đỏ có nhãn thật \(-1\). Điểm D có nhãn \(-1\) nhưng nằm trong vùng \(+1\), nên bị phân loại sai.</figcaption>
+</figure>
+
+<h3>② Hàm mất mát: biên độ (margin)</h3>
+<p>Với hồi quy, ta đo sai bằng phần dư. Với phân loại, đại lượng tương ứng là <dfn>biên độ</dfn> (<span class="en">margin</span>):</p>
+\[\text{margin} = (w\cdot\phi(x))\; y.\]
+<p>Nhân điểm số với nhãn thật có tác dụng gộp hai trường hợp vào một. Nếu dự đoán đúng (điểm số cùng dấu với \(y\)), margin dương; nếu sai, margin âm. Độ lớn của margin cho biết đúng (hoặc sai) <em>một cách tự tin</em> đến đâu. Tính cho bốn điểm trong hình với \(w = [-0.6, 0.6]\):</p>
+
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Điểm</th><th class="n">Điểm số \(w\cdot\phi(x)\)</th><th class="n">Nhãn \(y\)</th><th class="n">Margin</th><th>Nhận xét</th><th class="n">Zero-one</th><th class="n">Hinge</th></tr>
+<tr><td>A [0, 2]</td><td class="n">1.2</td><td class="n">+1</td><td class="n">1.2</td><td>đúng, khá tự tin</td><td class="n">0</td><td class="n">0</td></tr>
+<tr><td>B [−2, 0]</td><td class="n">1.2</td><td class="n">+1</td><td class="n">1.2</td><td>đúng</td><td class="n">0</td><td class="n">0</td></tr>
+<tr><td>C [1, −1]</td><td class="n">−1.2</td><td class="n">−1</td><td class="n">1.2</td><td>đúng</td><td class="n">0</td><td class="n">0</td></tr>
+<tr class="hl"><td>D [1, 2]</td><td class="n">0.6</td><td class="n">−1</td><td class="n">−0.6</td><td><b>sai</b></td><td class="n">1</td><td class="n">1.6</td></tr>
+</table></div>
+
+<p>Cách chấm tự nhiên nhất là <dfn>zero-one loss</dfn>: sai thì phạt 1, đúng thì phạt 0. Viết theo margin: \(\text{Loss}_{0\text{-}1} = \mathbf 1[\text{margin} \le 0]\), trong đó \(\mathbf 1[\cdot]\) bằng 1 nếu điều kiện đúng và bằng 0 nếu sai. TrainLoss khi đó chính là tỉ lệ đoán sai. Nhưng loss này có một vấn đề lớn với gradient descent:</p>
+
+<figure class="fig">
+<svg viewBox="0 0 400 260" role="img" aria-label="So sánh zero-one, hinge và logistic loss theo margin">
+  <g class="grid"><line x1="40" y1="230" x2="380" y2="230"/><line x1="205" y1="25" x2="205" y2="240"/><line x1="40" y1="180" x2="380" y2="180" stroke-dasharray="2 4"/></g>
+  <text x="372" y="250" text-anchor="end" class="t-small t-muted">margin →</text><text x="40" y="250" class="t-small t-muted">−3</text><text x="205" y="250" text-anchor="middle" class="t-small t-muted">0</text><text x="260" y="250" text-anchor="middle" class="t-small t-muted">1</text>
+  <text x="34" y="184" text-anchor="end" class="t-small t-muted">1</text><text x="34" y="234" text-anchor="end" class="t-small t-muted">0</text><text x="210" y="36" class="t-small t-muted">loss</text>
+  <path d="M40,180 L205,180 M205,230 L380,230" class="ln-ink" style="stroke-width:3"/>
+  <circle cx="205" cy="180" r="3.5" class="f-ink"/>
+  <path d="M40,30 L260,230 L380,230" class="ln-acc" style="stroke-width:2.6"/>
+  <path d="M40,77.6 L67.5,99.5 L95,123.7 L122.5,148.7 L150,164.3 L177.5,181 L205,195.3 L232.5,206 L260,214.3 L287.5,219.7 L315,223.7 L342.5,226 L370,227.6" class="ln-ok" style="stroke-width:2.4"/>
+  <text x="70" y="172" class="t-small t-b">zero-one</text>
+  <text x="150" y="98" class="t-small t-acc t-b">hinge</text>
+  <text x="296" y="208" class="t-small t-ok t-b">logistic</text>
+</svg>
+<figcaption><b>Ba hàm loss cho phân loại, vẽ theo margin.</b> Zero-one (đen) là hàm bậc thang. Ở mọi chỗ trừ \(0\), đồ thị nằm ngang, nên đạo hàm bằng 0 và gradient descent “không biết đi đâu”. Hinge (xanh dương) và logistic (xanh lá) là các <em>xấp xỉ trơn hơn</em>: luôn nằm trên zero-one và có độ dốc khác 0 ở vùng sai, nên gradient chỉ được hướng sửa.</figcaption>
+</figure>
+
+<p>Gradient descent cần độ dốc để biết nên sửa \(w\) theo hướng nào. Zero-one loss bằng phẳng gần như khắp nơi, nên gradient bằng 0 và thuật toán đứng yên. Giải pháp là thay nó bằng một hàm “có dốc”. Hai lựa chọn phổ biến:</p>
+<ul>
+<li><dfn>Hinge loss</dfn>: \(\text{Loss}_{\text{hinge}} = \max\{1 - \text{margin},\ 0\}\). Margin từ 1 trở lên thì không phạt. Dưới 1 thì phạt tăng tuyến tính. Ngưỡng 1 (thay vì 0) đòi hỏi mô hình không chỉ đúng mà còn đúng <em>với khoảng cách an toàn</em>. Đây là loss của SVM.</li>
+<li><dfn>Logistic loss</dfn>: \(\text{Loss}_{\text{logistic}} = \log(1 + e^{-\text{margin}})\). Hàm này trơn ở mọi nơi và không bao giờ bằng hẳn 0, nên luôn khuyến khích tăng margin thêm một chút. Đây là loss của hồi quy logistic.</li>
+</ul>
+
+<h3>③ Tối ưu: SGD với hinge loss</h3>
+<p>Gradient của hinge loss theo \(w\): nếu margin \(\ge 1\) thì gradient bằng 0, vì loss đang bằng hằng số 0. Nếu margin \(< 1\), loss bằng \(1 - (w\cdot\phi(x))y\), nên gradient bằng \(-\phi(x)\,y\). Bước SGD \(w \leftarrow w + \eta\,\phi(x)\,y\) có nghĩa là: <em>nếu chưa đủ tự tin, kéo \(w\) về phía \(\phi(x)\) khi nhãn là \(+1\), hoặc đẩy ra xa khi nhãn là \(-1\)</em>.</p>
+
+<div class="box example"><div class="box-h">Ví dụ · Sửa điểm D</div>
+<p>Điểm D: \(\phi = [1, 2]\), \(y = -1\), margin \(= -0.6 < 1\). Gradient \(= -\phi\,y = [1, 2]\). Với \(\eta = 0.1\): \(w \leftarrow [-0.6, 0.6] - 0.1[1, 2] = [-0.7,\ 0.4]\).</p>
+<p>Điểm số mới của D là \(-0.7 + 0.8 = 0.1\), margin tăng từ \(-0.6\) lên \(-0.1\). D vẫn bị đoán sai, nhưng đã gần đúng hơn. Thêm vài bước SGD nữa (xen kẽ với các điểm khác) sẽ xoay biên quyết định để tách được D.</p>
+</div>
+
+<h2 id="so-sanh"><span class="sec">5</span>Đặt hồi quy và phân loại cạnh nhau</h2>
+<p>Hai bài toán trông khác nhau nhưng dùng chung một bộ khung. Chúng chỉ khác ở cách biến điểm số thành dự đoán và cách đo sai:</p>
+<div class="tbl-wrap"><table class="tbl">
+<tr><th></th><th>Hồi quy tuyến tính</th><th>Phân loại tuyến tính</th></tr>
+<tr><td>Điểm số</td><td colspan="2" class="c">\(w\cdot\phi(x)\) (giống hệt nhau)</td></tr>
+<tr><td>Dự đoán</td><td>chính điểm số</td><td>dấu của điểm số</td></tr>
+<tr><td>Đại lượng đo sai</td><td>phần dư \(w\cdot\phi(x) - y\)</td><td>margin \((w\cdot\phi(x))\,y\)</td></tr>
+<tr><td>Loss thường dùng</td><td>squared: \((\text{phần dư})^2\)</td><td>hinge / logistic (thay cho zero-one)</td></tr>
+<tr><td>Tối ưu</td><td colspan="2" class="c">gradient descent / SGD trên TrainLoss</td></tr>
+</table></div>
+
+<div class="box recap"><div class="box-h">Ghi nhớ</div>
+<p>Học máy có giám sát = chọn <b>lớp giả thuyết</b> (ở đây là \(w\cdot\phi(x)\)), chọn <b>loss</b> đo mức sai, rồi dùng <b>tối ưu</b> (GD/SGD) để tìm \(w\) làm TrainLoss nhỏ nhất. Đặc trưng \(\phi\) quyết định mô hình “nhìn thấy” gì. Trọng số \(w\) là phần được học. Phân loại không tối ưu trực tiếp tỉ lệ sai vì zero-one loss không có gradient, nên ta dùng một loss trơn thay thế.</p>
+</div>
+
+<div class="box link"><div class="box-h">Bài tiếp theo giải quyết gì?</div>
+<p>Mô hình tuyến tính chỉ vẽ được đường thẳng. Nếu dữ liệu cong, ví dụ giá nhà tăng rồi giảm theo khoảng cách, hoặc hai lớp nằm trong ngoài một vòng tròn, đường thẳng sẽ bất lực. Bài 1.2 giữ nguyên toàn bộ khung loss + gradient ở trên và chỉ nâng cấp câu hỏi ①. Ta sẽ làm \(\phi(x)\) giàu hơn (đặc trưng phi tuyến), rồi để máy tự học luôn đặc trưng (mạng nơ-ron).</p>
+</div>
+
+<details class="quiz"><summary>Tự kiểm tra: vì sao không dùng luôn |phần dư| thay cho bình phương?</summary><div class="ans"><p>Hoàn toàn dùng được. Đó là <em>absolute deviation loss</em> \(|w\cdot\phi(x)-y|\). Nó ít bị ảnh hưởng bởi các điểm ngoại lai (outlier), vì sai 10 chỉ bị phạt 10 chứ không phải 100. Squared loss phổ biến vì trơn ở mọi nơi (kể cả tại 0) và có gradient gọn \(2(\text{phần dư})\phi(x)\). Hai loss này dẫn đến các đường “tốt nhất” khác nhau: squared loss hướng tới trung bình, absolute loss hướng tới trung vị.</p></div></details>
+<details class="quiz"><summary>Tự kiểm tra: với hinge loss, một điểm đã đúng nhưng margin = 0.5 có bị cập nhật không?</summary><div class="ans"><p>Có. Hinge loss bằng \(1 - 0.5 = 0.5 > 0\), nên gradient khác 0 và SGD vẫn đẩy \(w\) để tăng margin của điểm đó. Hinge đòi “đúng với khoảng cách an toàn” (margin ≥ 1), không chỉ đúng.</p></div></details>
+
+<p class="src">Nguồn: Stanford CS221 Spring 2025 — module <a href="https://stanford-cs221.github.io/spring2025/modules/">Machine Learning 1</a> (linear regression, linear classification); slide “Phân loại và hồi quy tuyến tính” của lớp.</p>
+
+</article></main></div>
+</body></html>

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4.2 Alpha-beta, TD learning và trò chơi đồng thời · CSAI</title>
+<meta name="description" content="Bài 4.2: expectiminimax, hàm đánh giá, alpha-beta pruning, TD learning, trò chơi đồng thời với chiến lược hỗn hợp, trò chơi không tổng bằng 0 và cân bằng Nash.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/katex/katex.min.css"><link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/vendor/katex/katex.min.js"></script><script defer src="assets/vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="assets/site.js"></script><script defer src="assets/sim.js"></script>
+</head>
+<body data-page="games-2">
+<div class="layout"><aside class="sidebar" id="sidebar"></aside>
+<main class="page" id="main"><article class="content">
+
+<header class="hero">
+  <div class="eyebrow">Chương 4 · Trò chơi · Bài 2</div>
+  <h1>Hàm đánh giá, alpha-beta, TD learning và trò chơi đồng thời</h1>
+  <p class="lead">Minimax đúng nhưng quá chậm với trò chơi thật, và chỉ áp dụng cho một kiểu trò chơi rất hẹp. Bài này giải quyết cả hai: làm minimax chạy được trên cờ vua (hàm đánh giá, alpha-beta, học hàm đánh giá), rồi mở rộng sang may rủi, hai bên đi cùng lúc, và hai bên không hoàn toàn đối nghịch.</p>
+  <div class="meta">
+    <div><h4>Bạn sẽ hiểu</h4><ul><li>Expectiminimax: trò chơi có may rủi</li><li>Tìm kiếm giới hạn độ sâu + hàm đánh giá</li><li>Alpha-beta cắt tỉa thế nào, vì sao không sai</li><li>TD learning; chiến lược hỗn hợp; cân bằng Nash</li></ul></div>
+    <div><h4>Cần biết trước</h4><p style="margin:0">Bài 4.1: cây trò chơi, minimax, expectimax. Bài 3.2 (Q-learning) và bài 1.1 (gradient) cho phần TD learning.</p></div>
+  </div>
+</header>
+
+<h2 id="expectiminimax"><span class="sec">1</span>Expectiminimax: đối thủ cộng thêm may rủi</h2>
+
+<div class="box problem"><div class="box-h">Trò ba thùng có thêm đồng xu (ví dụ của lớp)</div>
+<p>Sau khi bạn chọn thùng, một đồng xu được tung. <b>Sấp</b> (xác suất 0.5): giữ nguyên thùng đã chọn. <b>Ngửa</b> (0.5): chuyển sang thùng <em>bên trái</em>, quay vòng (A → C, B → A, C → B). Sau đó đối thủ chọn số nhỏ nhất trong thùng cuối cùng. Giờ nên chọn thùng nào?</p>
+</div>
+<p>Trò chơi có ba loại lượt: agent (max), tự nhiên (đồng xu, lấy kỳ vọng), đối thủ (min). <strong>Ý tưởng</strong> đơn giản là kết hợp cả hai phép tính đã biết, mỗi loại nút dùng đúng phép tính của nó:</p>
+\[V_{\text{exptminmax}}(s) = \begin{cases} \text{Utility}(s) & \text{IsEnd}(s)\\ \max_a V(\text{Succ}(s,a)) & \text{Player}(s) = \text{agent}\\ \min_a V(\text{Succ}(s,a)) & \text{Player}(s) = \text{opp}\\ \sum_a \pi_{\text{coin}}(a\mid s)\,V(\text{Succ}(s,a)) & \text{Player}(s) = \text{coin.} \end{cases}\]
+
+<div class="sim" data-sim="game"><script type="application/json">{"title":"Expectiminimax · ba thùng + đồng xu","sub":"MAX chọn thùng → đồng xu (sấp giữ, ngửa dời trái) → MIN chọn số","modes":["expectiminimax"],"dx":46,"dy":78,"tree":{"t":"max","a":["chọn A","chọn B","chọn C"],"c":[{"t":"chance","n":"xu","p":[0.5,0.5],"pl":["sấp 0.5","ngửa 0.5"],"c":[{"t":"opp","n":"A","c":[{"v":-50},{"v":50}]},{"t":"opp","n":"C","c":[{"v":-5},{"v":15}]}]},{"t":"chance","n":"xu","p":[0.5,0.5],"pl":["sấp 0.5","ngửa 0.5"],"c":[{"t":"opp","n":"B","c":[{"v":1},{"v":3}]},{"t":"opp","n":"A","c":[{"v":-50},{"v":50}]}]},{"t":"chance","n":"xu","p":[0.5,0.5],"pl":["sấp 0.5","ngửa 0.5"],"c":[{"t":"opp","n":"C","c":[{"v":-5},{"v":15}]},{"t":"opp","n":"B","c":[{"v":1},{"v":3}]}]}]}}</script></div>
+
+<p>Kết quả: chọn A cho \(\frac12(-50) + \frac12(-5) = -27.5\), chọn B cho \(\frac12(1) + \frac12(-50) = -24.5\), chọn C cho \(\frac12(-5) + \frac12(1) = -2\). Agent chọn <b>C</b>. Thật thú vị: không có đồng xu thì B tốt nhất. Nhưng có đồng xu, chọn B có 50% bị dời sang A (−50). Chọn C thì trường hợp xấu là bị dời sang B, và B lại an toàn. Chi phí tính toán tăng thêm theo số kết quả của đồng xu: \(O(b^{2d}\cdot s^{d})\) với \(s\) là số kết quả của mỗi lần tung.</p>
+
+<h2 id="eval-fn"><span class="sec">2</span>Hàm đánh giá: dừng sớm và ước lượng</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Cờ vua có khoảng \(35^{100}\) nút. Minimax cần tới lá (hết ván) mới biết utility. Ta không thể đi tới lá, nhưng vẫn phải chọn nước đi trong vài giây.</p>
+</div>
+<p><strong>Ý tưởng:</strong> chỉ nhìn trước \(d\) lượt, rồi dừng lại và <em>ước lượng</em> thế cờ bằng một <dfn>hàm đánh giá</dfn> \(\text{Eval}(s)\) (<span class="en">evaluation function</span>). Kỳ thủ cũng làm vậy: “tính tới đây thì thấy mình hơn một con xe, thế cờ tốt”. Minimax giới hạn độ sâu:</p>
+\[V_{\text{minmax}}(s, d) = \begin{cases} \text{Utility}(s) & \text{IsEnd}(s) \\ \text{Eval}(s) & d = 0 \\ \max_a V_{\text{minmax}}(\text{Succ}(s,a), d) & \text{Player}(s) = \text{agent} \\ \min_a V_{\text{minmax}}(\text{Succ}(s,a), d-1) & \text{Player}(s) = \text{opp.} \end{cases}\]
+<p>Độ sâu \(d\) giảm 1 sau mỗi lượt của đối thủ, tức là sau mỗi cặp nước đi. Hàm đánh giá thường là tổng có trọng số của các đặc trưng, rất giống \(w\cdot\phi(s)\) ở chương 1. Ví dụ với cờ vua:</p>
+\[\text{Eval}(s) = 9\,\Delta_{\text{hậu}} + 5\,\Delta_{\text{xe}} + 3\,(\Delta_{\text{tượng}} + \Delta_{\text{mã}}) + \Delta_{\text{tốt}} + 0.1\,\Delta_{\text{số nước đi hợp lệ}} + \dots\]
+<p>Ở đây \(\Delta\) là hiệu số giữa phe mình và phe đối thủ. Ví dụ, hơn một con xe thì \(\Delta_{\text{xe}} = 1\).</p>
+
+<div class="box pitfall"><div class="box-h">Dễ nhầm · Eval và heuristic của A*</div>
+<p>Cả hai đều “ước lượng phần tương lai chưa tính”. Nhưng heuristic A* admissible có <b>đảm bảo</b> (không đoán quá, nên A* vẫn tối ưu). Hàm đánh giá trong trò chơi <b>không có đảm bảo nào</b>: một Eval tồi có thể khiến agent đi những nước rất dở. Cũng đừng nhầm Eval với “game evaluation” ở bài 4.1: game evaluation là <em>tính chính xác</em> giá trị khi biết hai chính sách.</p>
+</div>
+
+<h2 id="alpha-beta"><span class="sec">3</span>Alpha-beta: bỏ qua những nhánh không thể ảnh hưởng kết quả</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Dù đã giới hạn độ sâu, cây vẫn lớn theo hàm mũ. Liệu có nhánh nào ta <em>chắc chắn</em> không cần xem, mà vẫn ra đúng đáp án minimax?</p>
+</div>
+
+<p><strong>Trực giác qua một ví dụ nhỏ.</strong> Bạn (MAX) chọn giữa hai túi, đối thủ (MIN) lấy món tệ nhất trong túi bạn chọn. Mở túi trái, xem hết thì thấy món tệ nhất là 3. Vậy bạn đã chắc chắn có <em>ít nhất 3</em>. Mở túi phải, món đầu tiên là 2. Không cần xem tiếp túi phải: đối thủ sẽ cho bạn tối đa 2 nếu bạn chọn túi này, mà 2 &lt; 3. Bạn chắc chắn không chọn túi phải, dù trong đó còn gì đi nữa.</p>
+
+<p>Alpha-beta hệ thống hóa lập luận này bằng hai con số đi kèm mỗi nút khi duyệt cây theo chiều sâu:</p>
+<div class="box def"><div class="box-h">Định nghĩa · α (alpha) và β (beta)</div>
+<p><b>α</b> là giá trị tốt nhất MAX đã <em>chắc chắn</em> có được trên đường từ gốc xuống nút hiện tại. MAX sẽ không chấp nhận gì thấp hơn α.</p>
+<p><b>β</b> là giá trị tốt nhất (nhỏ nhất) MIN đã <em>chắc chắn</em> có được trên đường đó. MIN sẽ không chấp nhận gì cao hơn β.</p>
+<p>Giá trị “còn có ý nghĩa” của nút hiện tại nằm trong khoảng \([\alpha, \beta]\). Khi \(\alpha \ge \beta\), khoảng này rỗng: dù các nhánh còn lại cho giá trị gì, kết quả ở gốc cũng không đổi. Ta <b>cắt tỉa</b> (<span class="en">prune</span>) các nhánh còn lại.</p>
+</div>
+
+<div class="algo"><div class="algo-h">Minimax với cắt tỉa alpha-beta</div>
+<pre><code>def V(s, α, β):
+    if IsEnd(s): return Utility(s)
+    if Player(s) == agent:                       <span class="c"># nút MAX</span>
+        v = −∞
+        for a in Actions(s):
+            v = max(v, V(Succ(s,a), α, β))
+            α = max(α, v)
+            if α ≥ β: break                      <span class="c"># MIN phía trên không cho phép tới đây</span>
+        return v
+    else:                                        <span class="c"># nút MIN</span>
+        v = +∞
+        for a in Actions(s):
+            v = min(v, V(Succ(s,a), α, β))
+            β = min(β, v)
+            if α ≥ β: break                      <span class="c"># MAX phía trên không chọn nhánh này</span>
+        return v
+gọi: V(s_start, −∞, +∞)</code></pre></div>
+
+<p>Hãy chạy từng bước trên cây ba tầng dưới đây. Quan sát khoảng [α, β] ghi trên mỗi nút đang được xét, và ký hiệu “≥ 5” hoặc “≤ 2” thể hiện những gì đã chắc chắn về giá trị của nút. Cây này có hai lần cắt tỉa: một ở nút MAX, một ở nút MIN.</p>
+
+<div class="sim" data-sim="game"><script type="application/json">{"title":"Alpha-beta từng bước","sub":"DFS trái → phải; cắt khi α ≥ β; nhánh mờ đứt nét là nhánh bị cắt","modes":["alphabeta","minimax"],"dx":62,"dy":80,"tree":{"t":"max","c":[{"t":"opp","n":"L","c":[{"t":"max","n":"a","c":[{"v":3},{"v":5}]},{"t":"max","n":"b","c":[{"v":6},{"v":9}]}]},{"t":"opp","n":"R","c":[{"t":"max","n":"c","c":[{"v":1},{"v":2}]},{"t":"max","n":"d","c":[{"v":0},{"v":-1}]}]}]}}</script></div>
+
+<h3>Phân tích hai lần cắt</h3>
+<ul>
+<li><b>Cắt ở nút MAX b (lá 9 bị bỏ).</b> Khi vào b, MIN L đã biết nhánh a cho 5, nên L ≤ 5 (β = 5). Lá đầu tiên của b là 6, nên b ≥ 6. MIN L sẽ không bao giờ chọn b (vì b ≥ 6 &gt; 5), nên lá 9 là gì cũng vô nghĩa.</li>
+<li><b>Cắt ở nút MIN R (cả cây con d bị bỏ).</b> Gốc đã chắc có 5 qua L (α = 5). Trong R, nhánh c cho 2, nên R ≤ 2. MAX ở gốc không bao giờ chọn R (vì R ≤ 2 &lt; 5), nên khỏi xem d.</li>
+</ul>
+<p>Alpha-beta đọc 5/8 lá mà vẫn cho giá trị gốc là 5, đúng như minimax (đổi sang chế độ “Minimax” để đối chiếu). Lưu ý: alpha-beta trả về giá trị 2 cho R, trong khi minimax thật của R là 0. Điều đó không sao, vì ta chỉ cần biết R ≤ 2 là đủ loại R. <b>Giá trị ở gốc luôn chính xác</b>, còn giá trị các nút bị cắt dở chỉ là cận.</p>
+
+<h3>Thứ tự duyệt quyết định hiệu quả</h3>
+<p>Alpha-beta cắt được nhiều nhất khi nước <em>tốt nhất</em> được xét <em>trước</em>. Khi đó, α và β thu hẹp ngay từ đầu. Với \(d\) lượt mỗi bên:</p>
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Thứ tự xét các nước</th><th>Số nút phải duyệt</th><th>Ý nghĩa</th></tr>
+<tr><td>Tệ nhất (nước tốt xét sau cùng)</td><td>\(O(b^{2d})\)</td><td>không cắt được gì, như minimax</td></tr>
+<tr><td>Ngẫu nhiên</td><td>\(O(b^{2\cdot 0.75 d})\)</td><td>khoảng \(b^{1.5d}\)</td></tr>
+<tr><td>Tốt nhất</td><td>\(O(b^{2\cdot 0.5 d}) = O(b^{d})\)</td><td>cùng thời gian, nhìn sâu được <b>gấp đôi</b></td></tr>
+</table></div>
+<p>Trong thực tế, người ta sắp xếp các nước theo Eval (ví dụ xét nước ăn quân trước) để đạt gần trường hợp tốt nhất.</p>
+
+<h2 id="td-learning"><span class="sec">4</span>TD learning: học hàm đánh giá từ tự chơi</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Hàm đánh giá với các trọng số 9, 5, 3, 1 do con người đặt ra. Với trò chơi mới, hoặc trò mà con người không có kinh nghiệm rõ ràng, làm sao có được trọng số tốt? Ý tưởng là cho máy <em>tự chơi với chính nó</em> và rút kinh nghiệm.</p>
+</div>
+<p>Ta mô hình hóa \(V(s; w) = w\cdot\phi(s)\) và học \(w\) bằng ý tưởng giống SARSA và Q-learning (bài 3.2). Sau mỗi bước \((s, a, r, s')\), ta muốn dự đoán \(V(s; w)\) gần với mục tiêu “thưởng vừa nhận + giá trị ước lượng của trạng thái kế tiếp”:</p>
+\[w \leftarrow w - \eta\,\big[\underbrace{V(s;w)}_{\text{dự đoán}} - \underbrace{(r + \gamma\,V(s';w))}_{\text{mục tiêu}}\big]\,\nabla_w V(s;w), \qquad \nabla_w V(s;w) = \phi(s).\]
+<p>Chữ “TD” (<span class="en">temporal difference</span>, sai khác theo thời gian) chỉ hiệu số giữa hai ước lượng ở hai thời điểm liên tiếp. Nếu thế cờ sau tốt hơn ta tưởng, ước lượng thế cờ trước được kéo lên, và ngược lại.</p>
+
+<div class="box example"><div class="box-h">Ví dụ · Một bước cập nhật</div>
+<p>\(\phi(s) = [1, 2]\), \(w = [0, 1]\), nên \(V(s; w) = 2\). Nước đi tiếp theo kết thúc ván với utility \(r = 5\) (thắng), và \(V(\text{end}) = 0\). Mục tiêu \(= 5\), phần dư \(= 2 - 5 = -3\). Với \(\eta = 0.1\): \(w \leftarrow [0, 1] - 0.1\cdot(-3)\cdot[1, 2] = [0.3,\ 1.6]\). Dự đoán mới \(V(s) = 0.3 + 3.2 = 3.5\), đã nhích lại gần 5.</p>
+</div>
+
+<div class="compare">
+<div><h4>Q-learning (bài 3.2)</h4><p>Học \(Q(s,a)\), vì không biết luật chơi: phải biết giá trị của từng hành động. Off-policy.</p></div>
+<div><h4>TD learning (trò chơi)</h4><p>Học \(V(s)\), vì đã biết luật chơi (Succ): chọn nước bằng cách thử từng nước rồi so \(V\) của kết quả. On-policy, học qua tự chơi.</p></div>
+</div>
+<p>TD-Gammon (1992) dùng TD learning với mạng nơ-ron, chỉ tự chơi, và đạt trình độ ngang nhà vô địch cờ thỏ cáo (backgammon). Tiếp nối là AlphaGo/AlphaZero, kết hợp tìm kiếm (giống minimax) với mạng nơ-ron học từ tự chơi.</p>
+
+<h2 id="simultaneous"><span class="sec">5</span>Trò chơi đồng thời: khi không ai được đi sau</h2>
+
+<div class="box problem"><div class="box-h">Trò chơi Morra hai ngón (CS221)</div>
+<p>A và B <b>cùng lúc</b> giơ 1 hoặc 2 ngón tay. Cả hai giơ 1: B trả A 2 đô. Cả hai giơ 2: B trả A 4 đô. Khác nhau: A trả B 3 đô. Không ai được nhìn bên kia trước. Cây trò chơi lượt-sau-lượt không còn mô tả được tình huống này.</p>
+</div>
+<p>Ta mô tả bằng <dfn>ma trận thưởng</dfn> (<span class="en">payoff matrix</span>) \(V(a, b)\), ghi tiền A nhận được:</p>
+<div class="tbl-wrap"><table class="tbl" style="max-width:420px">
+<tr><th>A \ B</th><th class="c">B giơ 1</th><th class="c">B giơ 2</th></tr>
+<tr><td><b>A giơ 1</b></td><td class="c">2</td><td class="c">−3</td></tr>
+<tr><td><b>A giơ 2</b></td><td class="c">−3</td><td class="c">4</td></tr>
+</table></div>
+
+<h3>Chiến lược thuần túy: ai lộ bài trước thì thua</h3>
+<p>Một <dfn>chiến lược thuần túy</dfn> (<span class="en">pure strategy</span>) là luôn giơ một số cố định. Nếu A buộc phải công bố trước: giơ 1 thì B giơ 2 (A mất 3), giơ 2 thì B giơ 1 (A mất 3). Vậy A được tối đa −3. Nếu B phải công bố trước, A được 2. Đi sau có lợi rất lớn, vì người đi sau khai thác được lựa chọn cố định của người đi trước.</p>
+
+<h3>Chiến lược hỗn hợp: ngẫu nhiên hóa để không bị đoán</h3>
+<p>Một <dfn>chiến lược hỗn hợp</dfn> (<span class="en">mixed strategy</span>) là một phân phối xác suất: A giơ 1 với xác suất \(p\), giơ 2 với xác suất \(1-p\). Nếu B biết \(p\) và chọn giơ 1, A được kỳ vọng \(2p - 3(1-p) = 5p - 3\). Nếu B chọn giơ 2, A được \(-3p + 4(1-p) = 4 - 7p\). B sẽ chọn cái nhỏ hơn. A muốn chọn \(p\) để cái nhỏ hơn đó lớn nhất.</p>
+
+<figure class="fig">
+<svg viewBox="0 0 400 240" role="img" aria-label="Giá trị kỳ vọng của A theo p">
+  <g class="grid"><line x1="50" y1="30" x2="50" y2="205"/><line x1="50" y1="205" x2="350" y2="205"/><line x1="50" y1="130" x2="350" y2="130" stroke-dasharray="2 4"/></g>
+  <text x="44" y="34" text-anchor="end" class="t-small t-muted">4</text><text x="44" y="134" text-anchor="end" class="t-small t-muted">0</text><text x="44" y="209" text-anchor="end" class="t-small t-muted">−3</text>
+  <text x="50" y="224" text-anchor="middle" class="t-small t-muted">p = 0</text><text x="350" y="224" text-anchor="middle" class="t-small t-muted">1</text><text x="225" y="224" text-anchor="middle" class="t-small t-acc t-b">7/12</text>
+  <line x1="50" y1="205" x2="350" y2="80" class="ln" style="stroke:var(--violet);stroke-width:2"/>
+  <line x1="50" y1="30" x2="350" y2="205" class="ln" style="stroke:var(--chance);stroke-width:2"/><line x1="236" y1="30" x2="256" y2="30" style="stroke:var(--violet);stroke-width:2"/><text x="262" y="34" class="t-small" style="fill:var(--violet)">B giơ 1: 5p − 3</text><line x1="236" y1="50" x2="256" y2="50" style="stroke:var(--chance);stroke-width:2"/><text x="262" y="54" class="t-small t-ch">B giơ 2: 4 − 7p</text>
+  <path d="M50,205 L225,132 L350,205" class="ln-acc" style="stroke-width:3.4;opacity:.75"/>
+  <circle cx="225" cy="132" r="6" class="f-acc"/><text x="232" y="198" class="t-small t-acc t-b">giá trị −1/12</text>
+  <line x1="225" y1="132" x2="225" y2="205" class="ln-dash"/>
+</svg>
+<figcaption><b>A chọn \(p\) để tối đa hóa phương án tệ nhất.</b> Đường xanh đậm là \(\min\) của hai đường, tức là cái B sẽ chọn. Đỉnh của nó nằm ở giao điểm \(5p - 3 = 4 - 7p\), tức \(p = 7/12\), với giá trị \(-1/12\). Tại đó B chọn gì cũng như nhau, nên dù B biết \(p\) cũng không khai thác được.</figcaption>
+</figure>
+
+<p>Làm tương tự cho B: xác suất tối ưu của B cũng là \(q = 7/12\), và giá trị cũng là \(-1/12\). Đó không phải trùng hợp:</p>
+<div class="box def"><div class="box-h">Định lý minimax (von Neumann, 1928)</div>
+<p>Với mọi trò chơi đồng thời hai người, tổng bằng 0, số hành động hữu hạn, khi cho phép chiến lược hỗn hợp:</p>
+\[\max_{\pi_A}\min_{\pi_B} V(\pi_A, \pi_B) = \min_{\pi_B}\max_{\pi_A} V(\pi_A, \pi_B).\]
+<p>Nghĩa là <b>với chiến lược hỗn hợp, công bố trước hay sau không còn quan trọng</b>. Lợi thế đi sau hoàn toàn biến mất.</p>
+</div>
+<p>Trong Morra, A chịu thiệt nhẹ (−1/12 mỗi ván) nếu B chơi tối ưu. So với −3 khi A dùng chiến lược thuần túy và lộ bài, ngẫu nhiên hóa đã giúp A rất nhiều.</p>
+
+<h2 id="non-zero-sum"><span class="sec">6</span>Trò chơi không tổng bằng 0 và cân bằng Nash</h2>
+<p>Ngoài đời, lợi ích hai bên hiếm khi đối nghịch hoàn toàn. Thương lượng, hợp tác hay cạnh tranh giữa các công ty đều có những kết cục mà <em>cả hai cùng được</em> hoặc <em>cùng mất</em>.</p>
+<div class="box problem"><div class="box-h">Thế lưỡng nan của người tù (Prisoner's dilemma)</div>
+<p>Hai nghi phạm bị thẩm vấn riêng. Mỗi người chọn <b>khai</b> hoặc <b>im lặng</b>. Cả hai im lặng: mỗi người 1 năm tù. Một người khai, người kia im lặng: người khai được thả, người im lặng 10 năm. Cả hai khai: mỗi người 5 năm.</p>
+</div>
+<div class="tbl-wrap"><table class="tbl" style="max-width:520px">
+<tr><th>A \ B</th><th class="c">B im lặng</th><th class="c">B khai</th></tr>
+<tr><td><b>A im lặng</b></td><td class="c">(−1, −1)</td><td class="c">(−10, 0)</td></tr>
+<tr class="hl"><td><b>A khai</b></td><td class="c">(0, −10)</td><td class="c"><b>(−5, −5)</b></td></tr>
+</table><caption>Mỗi ô ghi (lợi ích của A, lợi ích của B). Năm tù được ghi dưới dạng số âm.</caption></div>
+<p>Xét từ góc nhìn của A. Nếu B im lặng, A khai thì được 0, tốt hơn −1. Nếu B khai, A khai thì được −5, tốt hơn −10. Vậy <b>dù B làm gì, A khai cũng tốt hơn</b>. B lập luận y hệt. Kết quả là cả hai khai và mỗi người ngồi 5 năm, trong khi nếu cả hai im lặng thì chỉ 1 năm.</p>
+<div class="box def"><div class="box-h">Cân bằng Nash (Nash equilibrium)</div>
+<p>Một cặp chiến lược \((\pi_A^*, \pi_B^*)\) là cân bằng Nash nếu <b>không ai có lợi khi đơn phương đổi chiến lược</b>, trong khi người kia giữ nguyên. (Khai, khai) là cân bằng Nash: từ đó, ai tự đổi sang im lặng cũng bị 10 năm thay vì 5. (Im lặng, im lặng) tốt hơn cho cả hai nhưng <em>không</em> bền: mỗi người đều có động cơ phản bội.</p>
+<p><b>Định lý Nash (1950):</b> mọi trò chơi hữu hạn (nhiều người, tổng bất kỳ) có ít nhất một cân bằng Nash, có thể là chiến lược hỗn hợp.</p>
+</div>
+
+<div class="box pitfall"><div class="box-h">Dễ nhầm · Giá trị minimax và cân bằng Nash</div>
+<p>Với trò chơi tổng bằng 0, cân bằng Nash chính là cặp chiến lược minimax, và giá trị là duy nhất. Với trò chơi không tổng bằng 0, có thể có nhiều cân bằng Nash với lợi ích khác nhau. Cân bằng Nash cũng <b>không có nghĩa là tốt nhất cho tập thể</b>, như ví dụ người tù cho thấy.</p>
+</div>
+
+<div class="box idea"><div class="box-h">Góc mở rộng · Lệch mục tiêu (AI misalignment)</div>
+<p>Mọi thuật toán trong chương 3–4 tối ưu <em>đúng</em> cái ta viết ra (reward, utility), chứ không phải cái ta <em>muốn</em>. Một agent đua thuyền được thưởng theo số điểm nhặt được đã học cách chạy vòng tròn mãi để nhặt điểm thay vì về đích. Đây là <b>reward hacking</b>. Một robot dọn dẹp tối đa hóa “độ sạch” có thể làm vỡ đồ trên đường đi, gọi là <b>tác dụng phụ</b> (<span class="en">negative side effects</span>). Thiết kế mục tiêu đúng cũng quan trọng như thiết kế thuật toán.</p>
+</div>
+
+<div class="box recap"><div class="box-h">Tổng kết chương 4</div>
+<div class="tbl-wrap" style="margin:.4rem 0 0"><table class="tbl">
+<tr><th>Tình huống</th><th>Công cụ</th><th>Ý tưởng một dòng</th></tr>
+<tr><td>Đối thủ + may rủi</td><td>Expectiminimax</td><td>max / min / kỳ vọng tùy loại nút</td></tr>
+<tr><td>Cây quá sâu</td><td>Giới hạn độ sâu + Eval</td><td>nhìn trước \(d\) lượt, ước lượng phần còn lại</td></tr>
+<tr><td>Cây quá rộng</td><td>Alpha-beta</td><td>bỏ nhánh không thể ảnh hưởng gốc, kết quả không đổi</td></tr>
+<tr><td>Không biết Eval</td><td>TD learning</td><td>tự chơi, kéo \(V(s)\) về \(r + \gamma V(s')\)</td></tr>
+<tr><td>Đi cùng lúc</td><td>Chiến lược hỗn hợp</td><td>ngẫu nhiên hóa; định lý minimax: thứ tự không còn quan trọng</td></tr>
+<tr><td>Không đối nghịch hoàn toàn</td><td>Cân bằng Nash</td><td>không ai lợi khi đơn phương đổi</td></tr>
+</table></div>
+</div>
+
+<div class="box link"><div class="box-h">Nhìn lại cả hành trình</div>
+<p><b>Chương 1</b> học hàm \(f\) từ dữ liệu. <b>Chương 2</b> tìm chuỗi hành động trong thế giới tất định (min chi phí). <b>Chương 3</b> thêm may rủi: thay min bằng kỳ vọng, lời giải thành chính sách, và học từ trải nghiệm khi không biết luật. <b>Chương 4</b> thêm đối thủ: thay kỳ vọng bằng min ở lượt đối thủ. Cả bốn chương dùng chung một mạch: định nghĩa giá trị bằng truy hồi, tính nó hiệu quả, và học những phần chưa biết (chi phí, \(T\), Eval) bằng các kỹ thuật của chương 1.</p>
+</div>
+
+<details class="quiz"><summary>Tự kiểm tra: trong cây alpha-beta ở trên, nếu đổi thứ tự hai nhánh của gốc (xét R trước L) thì có cắt được cây con d không?</summary><div class="ans"><p>Không. Xét R trước thì α ở gốc vẫn là −∞, nên R phải được tính đầy đủ: c = 2, d = max(0, −1) = 0, R = 0. Sau đó xét L với α = 0: a = 5 nên L ≤ 5. Vào b, lá 6 ≥ β = 5 nên vẫn cắt được lá 9. Thứ tự tệ hơn làm mất một lần cắt. Đó là lý do thứ tự duyệt rất quan trọng.</p></div></details>
+<details class="quiz"><summary>Tự kiểm tra: trong Morra, nếu A cứ giơ 1 với p = 0.9 thì B nên làm gì?</summary><div class="ans"><p>So hai lựa chọn của B. Giơ 1: A được \(5(0.9) - 3 = 1.5\). Giơ 2: A được \(4 - 7(0.9) = -2.3\). B chọn giơ 2 (luôn luôn) và A mất trung bình 2.3 mỗi ván. Lệch khỏi \(p = 7/12\) thì bị khai thác.</p></div></details>
+
+<p class="src">Nguồn: Stanford CS221 Spring 2025 — <a href="https://stanford-cs221.github.io/spring2025/modules/">Games 2</a> (expectiminimax, evaluation functions, alpha-beta pruning, TD learning, simultaneous games, non-zero-sum games, AI misalignment); slide “Game II” của lớp.</p>
+
+</article></main></div>
+</body></html>

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2.2 UCS, học chi phí và A* · CSAI</title>
+<meta name="description" content="Bài 2.2: Uniform Cost Search và chứng minh tính đúng, structured perceptron, A* với heuristic admissible/consistent, tạo heuristic bằng relaxation.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/katex/katex.min.css"><link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/vendor/katex/katex.min.js"></script><script defer src="assets/vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="assets/site.js"></script><script defer src="assets/sim.js"></script>
+</head>
+<body data-page="search-2">
+<div class="layout"><aside class="sidebar" id="sidebar"></aside>
+<main class="page" id="main"><article class="content">
+
+<header class="hero">
+  <div class="eyebrow">Chương 2 · Tìm kiếm · Bài 2</div>
+  <h1>UCS, học chi phí và A*</h1>
+  <p class="lead">Quy hoạch động gặp bế tắc khi đồ thị có chu trình. UCS giải quyết bằng cách đi xuôi từ điểm đầu và chốt dần các trạng thái theo thứ tự chi phí tăng dần. A* làm UCS nhanh hơn nhờ một “la bàn” ước lượng khoảng cách tới đích.</p>
+  <div class="meta">
+    <div><h4>Bạn sẽ hiểu</h4><ul><li>UCS hoạt động ra sao, vì sao nó đúng</li><li>Học chi phí từ ví dụ mẫu (structured perceptron)</li><li>A*, heuristic admissible và consistent</li><li>Cách tự chế heuristic bằng relaxation</li></ul></div>
+    <div><h4>Cần biết trước</h4><p style="margin:0">Bài 2.1: mô hình bài toán tìm kiếm, FutureCost, quy hoạch động.</p></div>
+  </div>
+</header>
+
+<h2 id="ucs"><span class="sec">1</span>Uniform Cost Search (UCS)</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Bản đồ thật có chu trình: từ S tới A rồi quay về S là hợp lệ. Quy hoạch động tính ngược từ đích sẽ quay vòng mãi. Ta cần một thuật toán xử lý được chu trình, với điều kiện mọi chi phí cạnh <b>không âm</b>.</p>
+</div>
+
+<p><strong>Ý tưởng cốt lõi:</strong> hãy hình dung nước loang ra từ S với tốc độ đều. Nước chạm tới những nơi gần (rẻ) trước, nơi xa (đắt) sau. Thời điểm nước <em>lần đầu</em> chạm tới một nơi chính là khoảng cách ngắn nhất tới nơi đó. UCS mô phỏng đúng điều này: nó luôn xử lý tiếp trạng thái có <dfn>PastCost</dfn> (chi phí đã đi từ S, ký hiệu \(g\)) nhỏ nhất trong số các trạng thái đã biết tới.</p>
+
+<p>UCS chia các trạng thái thành ba nhóm:</p>
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Nhóm</th><th>Ý nghĩa</th><th>PastCost</th></tr>
+<tr><td><b style="color:var(--ok)">Explored</b> (đã chốt)</td><td>đã lấy ra và xử lý xong</td><td>chắc chắn là tối ưu</td></tr>
+<tr><td><b style="color:var(--chance)">Frontier</b> (biên)</td><td>đã nhìn thấy, đang chờ</td><td>tốt nhất <em>hiện biết</em>, có thể còn giảm</td></tr>
+<tr><td><b>Unexplored</b></td><td>chưa nhìn thấy</td><td>chưa biết</td></tr>
+</table></div>
+
+<div class="algo"><div class="algo-h">Uniform Cost Search <small>frontier là hàng đợi ưu tiên theo PastCost</small></div>
+<pre><code>frontier = {s_start: 0};  explored = {}
+while frontier không rỗng:
+    s, g = lấy phần tử có g NHỎ NHẤT ra khỏi frontier
+    đưa s vào explored                       <span class="c"># g của s giờ đã chốt</span>
+    if IsEnd(s): return g (và đường đi)       <span class="c"># chỉ dừng khi LẤY RA đích</span>
+    for a in Actions(s):
+        t = Succ(s, a)
+        if t in explored: continue
+        nếu t chưa có trong frontier, hoặc g + Cost(s,a) nhỏ hơn giá hiện tại của t:
+            frontier[t] = g + Cost(s,a);  ghi nhớ t “đến từ” s</code></pre></div>
+
+<div class="box math"><div class="box-h">Toán nền · Hàng đợi ưu tiên (priority queue)</div>
+<p>Là một cấu trúc dữ liệu chứa các cặp (phần tử, độ ưu tiên) và cho phép lấy ra nhanh phần tử có độ ưu tiên <em>nhỏ nhất</em>. Nó cũng cho phép cập nhật độ ưu tiên. Mỗi thao tác tốn khoảng \(O(\log n)\) với \(n\) phần tử.</p>
+</div>
+
+<p>Hãy chạy UCS trên bản đồ của bài trước (các đường đi hai chiều). Mỗi bước lấy ra phần tử đứng đầu frontier. Bạn hãy quan sát kỹ bước lấy A ra: G xuất hiện trong frontier với giá 11, nhưng UCS <b>chưa dừng</b>.</p>
+
+<div class="sim" data-sim="graph"><script type="application/json">{"title":"UCS trên bản đồ ví dụ","sub":"Đồ thị vô hướng, chi phí ghi trên cạnh; dừng khi LẤY RA G","nodes":{"S":[60,120],"A":[190,50],"B":[190,190],"C":[340,50],"D":[340,190],"G":[470,120]},"edges":[["S","A",2],["S","B",1],["A","C",2],["A","G",9],["C","G",2],["B","D",1],["D","G",10]],"start":"S","goal":"G","algos":["ucs"]}</script></div>
+
+<div class="box pitfall"><div class="box-h">Dễ nhầm · Thấy đích chưa phải là xong</div>
+<p>Sau khi lấy A ra, G vào frontier với giá 11 qua đường A→G. Nếu dừng lúc đó, ta sẽ trả về đáp án sai. UCS chỉ kết luận khi <b>lấy G ra khỏi frontier</b>, vì chỉ lúc đó mới chắc không còn đường nào rẻ hơn. Trong mô phỏng, giá của G giảm từ 11 xuống 6 khi lấy C ra.</p>
+</div>
+
+<h3>Vì sao UCS đúng?</h3>
+<div class="box def"><div class="box-h">Định lý</div>
+<p>Nếu mọi chi phí cạnh \(\ge 0\), thì khi UCS lấy trạng thái \(s\) ra khỏi frontier, giá \(g(s)\) đang có chính là PastCost tối ưu của \(s\).</p>
+</div>
+<p><b>Lập luận.</b> Giả sử UCS vừa lấy \(s\) ra với giá \(g(s)\). Xét một đường đi bất kỳ khác từ S tới \(s\). Đường này bắt đầu trong vùng explored và kết thúc ở \(s\) (chưa explored), nên nó phải <em>bước ra khỏi</em> vùng explored ở một chỗ nào đó, đi qua một trạng thái \(t\) nằm trong frontier. Vì UCS chọn \(s\) chứ không chọn \(t\), ta có \(g(t) \ge g(s)\). Đoạn đường còn lại từ \(t\) tới \(s\) có chi phí \(\ge 0\). Vậy đường đi kia tốn ít nhất \(g(t) \ge g(s)\), tức là không rẻ hơn. ∎</p>
+
+<figure class="fig">
+<svg viewBox="0 0 460 210" role="img" aria-label="Minh họa chứng minh UCS">
+  <ellipse cx="150" cy="105" rx="130" ry="85" class="nd-ok" style="opacity:.75"/>
+  <text x="95" y="62" class="t-small t-ok t-b">explored</text>
+  <circle cx="70" cy="110" r="14" class="nd-acc"/><text x="70" y="115" text-anchor="middle" class="t-small t-b">S</text>
+  <circle cx="290" cy="60" r="14" class="nd-ch"/><text x="290" y="65" text-anchor="middle" class="t-small t-b">s</text>
+  <circle cx="290" cy="160" r="14" class="nd-ch"/><text x="290" y="165" text-anchor="middle" class="t-small t-b">t</text>
+  <path d="M84,104 C150,70 220,60 276,60" class="ln-acc"/>
+  <path d="M84,116 C150,150 220,160 276,160" class="ln" style="stroke:var(--min);stroke-width:2"/>
+  <path d="M304,160 C380,150 380,80 304,64" class="ln-dash" style="stroke:var(--min)"/>
+  <text x="180" y="54" class="t-small t-acc t-b">g(s)</text><text x="150" y="172" text-anchor="middle" class="t-small t-min">g(t) ≥ g(s)</text><text x="384" y="115" class="t-small t-min">+ chi phí ≥ 0</text>
+</svg>
+<figcaption><b>Mọi đường khác tới \(s\) đều phải đi qua frontier.</b> Đường đỏ ra khỏi vùng explored tại \(t\). Tới \(t\) đã tốn ít nhất \(g(s)\), vì nếu không UCS đã chọn \(t\). Đi tiếp từ \(t\) tới \(s\) chỉ tốn thêm. Lập luận này hỏng ngay khi có cạnh âm, vì đoạn đứt nét có thể làm tổng giảm.</figcaption>
+</figure>
+
+<div class="tbl-wrap"><table class="tbl">
+<tr><th></th><th>Quy hoạch động (bài 2.1)</th><th>UCS</th></tr>
+<tr><td>Hướng tính</td><td>ngược từ đích (FutureCost)</td><td>xuôi từ điểm đầu (PastCost)</td></tr>
+<tr><td>Chu trình</td><td>không chịu được</td><td>chịu được</td></tr>
+<tr><td>Chi phí âm</td><td>được</td><td>không được</td></tr>
+<tr><td>Phạm vi xét</td><td>mọi trạng thái</td><td>chỉ các trạng thái có PastCost nhỏ hơn PastCost của đích</td></tr>
+<tr><td>Thời gian</td><td>\(O(N)\) với \(N\) trạng thái</td><td>\(O(n\log n)\) với \(n\) trạng thái được khám phá</td></tr>
+</table></div>
+<p>UCS thực chất là thuật toán Dijkstra quen thuộc, chỉ khác là nó dừng ngay khi tới đích và sinh trạng thái “theo nhu cầu” thay vì có sẵn cả đồ thị.</p>
+
+<h2 id="perceptron"><span class="sec">2</span>Học chi phí: structured perceptron</h2>
+
+<div class="box problem"><div class="box-h">Bài toán ngược</div>
+<p>Đến giờ ta luôn <em>biết</em> chi phí rồi đi tìm đường. Nhưng trong thực tế, chi phí thường không ai biết chính xác. Ví dụ, một tài xế giỏi “cảm thấy” đường nào nên đi, nhưng không viết ra được mỗi đoạn tốn bao nhiêu. Ta chỉ có các <em>lộ trình mẫu</em> mà chuyên gia đã chọn. Liệu có thể học ngược ra chi phí để thuật toán tìm kiếm tự đưa ra lộ trình giống chuyên gia?</p>
+</div>
+
+<p>Đây là chỗ học máy (chương 1) gặp tìm kiếm. Ta cho chi phí phụ thuộc vào trọng số \(w\), ví dụ \(\text{Cost}(s, a) = w[a]\), và học \(w\) từ các cặp (đầu vào, đường đi đúng \(y\)). <strong>Ý tưởng</strong> giống perceptron: dùng \(w\) hiện tại để tìm đường \(y'\). Nếu \(y'\) khác \(y\), giảm chi phí các hành động trong đường đúng và tăng chi phí các hành động trong đường đoán sai, để lần sau đường đúng trở nên rẻ hơn.</p>
+
+<div class="algo"><div class="algo-h">Structured perceptron <small>(Collins, 2002)</small></div>
+<pre><code>khởi tạo w[a] = 0 cho mọi hành động a
+lặp qua các ví dụ (x, y) cho đến khi không còn sai:
+    y' = đường tối ưu tìm được với chi phí w hiện tại     <span class="c"># dùng DP/UCS</span>
+    for a in y:  w[a] ← w[a] − 1     <span class="c"># làm đường đúng rẻ hơn</span>
+    for a in y': w[a] ← w[a] + 1     <span class="c"># làm đường đoán sai đắt hơn</span></code></pre></div>
+
+<div class="box example"><div class="box-h">Ví dụ · Bài đi bộ–tàu với n = 4</div>
+<p>Chuyên gia đi: <b>bộ, bộ, bộ</b> (1→2→3→4). Ban đầu \(w[\text{bộ}] = w[\text{tàu}] = 0\), mọi đường đều tốn 0. Giả sử thuật toán tìm kiếm trả về đường ít bước nhất: <b>bộ, tàu</b> (1→2→4).</p>
+<p>Cập nhật: đường đúng có 3 lần “bộ” nên \(w[\text{bộ}] = 0 - 3 = -3\). Đường đoán có 1 “bộ” và 1 “tàu” nên \(w[\text{bộ}] = -3 + 1 = -2\) và \(w[\text{tàu}] = 0 + 1 = 1\).</p>
+<p>Lượt sau, với \(w = (-2, 1)\): đường bộ–bộ–bộ tốn \(-6\), bộ–tàu tốn \(-1\), các đường bắt đầu bằng tàu còn đắt hơn. Thuật toán chọn bộ–bộ–bộ, trùng chuyên gia, nên ngừng cập nhật. Máy đã “hiểu” rằng chuyên gia coi đi bộ rẻ hơn đi tàu. Lưu ý đồ thị này không có chu trình, nên chi phí âm vẫn giải được bằng quy hoạch động.</p>
+</div>
+<p>Thuật toán chỉ quan tâm việc đường tìm được có trùng đường mẫu hay không. Nó không cố khôi phục đúng con số chi phí “thật”, vì những bộ chi phí khác nhau vẫn có thể cho cùng hành vi.</p>
+
+<h2 id="astar"><span class="sec">3</span>A*: tìm kiếm có định hướng</h2>
+
+<div class="box problem"><div class="box-h">Hạn chế của UCS</div>
+<p>UCS loang đều <em>mọi hướng</em>. Tìm đường từ Hà Nội vào TP.HCM, nó sẽ xét cả các đường đi lên Lạng Sơn, chỉ vì chúng có PastCost nhỏ. Rõ ràng là lãng phí: ta biết Lạng Sơn nằm ngược hướng với đích.</p>
+</div>
+
+<p><strong>Ý tưởng:</strong> khi chọn trạng thái tiếp theo, đừng chỉ nhìn quãng đã đi (PastCost), mà hãy cộng thêm một <em>ước lượng</em> quãng còn lại. Ước lượng đó là một hàm \(h(s)\), gọi là <dfn>heuristic</dfn>, ví dụ khoảng cách đường chim bay tới đích. A* chính là UCS với độ ưu tiên:</p>
+\[f(s) = \underbrace{g(s)}_{\text{PastCost: đã đi}} + \underbrace{h(s)}_{\text{ước lượng FutureCost: còn lại}}.\]
+
+<figure class="fig">
+<svg viewBox="0 0 520 200" role="img" aria-label="Vùng khám phá của UCS và A*">
+  <circle cx="130" cy="100" r="80" class="nd-ch" style="opacity:.7"/><circle cx="130" cy="100" r="7" class="f-acc"/><circle cx="200" cy="100" r="7" class="f-ok"/>
+  <text x="130" y="122" text-anchor="middle" class="t-small t-b">S</text><text x="200" y="122" text-anchor="middle" class="t-small t-b">G</text>
+  <text x="130" y="196" text-anchor="middle" class="t-small t-b">UCS: loang đều mọi hướng</text>
+  <ellipse cx="385" cy="100" rx="58" ry="30" class="nd-acc" style="opacity:.85"/><circle cx="345" cy="100" r="7" class="f-acc"/><circle cx="425" cy="100" r="7" class="f-ok"/>
+  <text x="345" y="92" text-anchor="middle" class="t-small t-b">S</text><text x="425" y="92" text-anchor="middle" class="t-small t-b">G</text>
+  <text x="385" y="196" text-anchor="middle" class="t-small t-b">A*: vùng khám phá hướng về đích</text>
+</svg>
+<figcaption><b>Vùng trạng thái bị khám phá trước khi tìm được G.</b> UCS khám phá mọi trạng thái có PastCost nhỏ hơn PastCost của đích, nên vùng là một “hình tròn”. A* phạt những trạng thái đi xa khỏi đích (có \(h\) lớn), nên vùng khám phá co lại thành “hình elip” hướng về G.</figcaption>
+</figure>
+
+<p>Chạy cả hai thuật toán trên cùng bản đồ. Giá trị heuristic \(h\) ghi phía trên mỗi nút. Hãy đếm số trạng thái phải mở rộng trước khi lấy G ra:</p>
+
+<div class="sim" data-sim="graph"><script type="application/json">{"title":"So sánh UCS và A*","sub":"Heuristic h ghi trên mỗi nút; A* ưu tiên f = g + h","nodes":{"S":[60,130],"A":[190,60],"B":[190,200],"C":[340,60],"D":[340,200],"G":[470,130]},"edges":[["S","A",2],["S","B",1],["A","C",2],["A","G",9],["C","G",2],["B","D",1],["D","G",10]],"start":"S","goal":"G","h":{"S":5,"A":4,"B":6,"C":2,"D":6,"G":0},"algos":["ucs","astar"],"algo":"astar"}</script></div>
+
+<p>UCS mở rộng 6 trạng thái (S, B, A, D, C, G). A* chỉ cần 4 (S, A, C, G). B có PastCost nhỏ (1), nhưng heuristic cho biết từ B tới đích còn ít nhất 6, nên \(f(B) = 7\) xếp sau đường qua A (\(f = 6\)). A* không bao giờ phải lấy B ra.</p>
+
+<h3>Heuristic phải thỏa điều kiện gì?</h3>
+<p>Heuristic tùy tiện có thể làm hỏng kết quả. Nếu ta đặt \(h(A) = 100\), A* sẽ bỏ qua đường tốt nhất qua A. Có hai điều kiện quan trọng:</p>
+<div class="box def"><div class="box-h">Admissible (chấp nhận được) và consistent (nhất quán)</div>
+<p><b>Admissible:</b> \(h(s) \le \text{FutureCost}(s)\) với mọi \(s\). Heuristic không bao giờ đoán <em>quá</em> chi phí thật còn lại, tức là luôn “lạc quan”.</p>
+<p><b>Consistent:</b> \(h(s) \le \text{Cost}(s, a) + h(\text{Succ}(s, a))\) với mọi cạnh, và \(h(\text{đích}) = 0\). Ước lượng không được giảm nhanh hơn chi phí thật bỏ ra khi đi một bước. Đây là “bất đẳng thức tam giác” cho heuristic.</p>
+</div>
+<p>Consistent kéo theo admissible: cộng dồn bất đẳng thức dọc đường tối ưu từ \(s\) tới đích sẽ được \(h(s) \le \text{FutureCost}(s)\). Chiều ngược lại không phải lúc nào cũng đúng.</p>
+
+<h3>Vì sao A* đúng: nhìn A* như UCS với chi phí mới</h3>
+<p>CS221 giải thích A* rất gọn. Định nghĩa chi phí mới cho mỗi cạnh:</p>
+\[\text{Cost}'(s, a) = \text{Cost}(s, a) + h(\text{Succ}(s,a)) - h(s).\]
+<p>Cộng \(\text{Cost}'\) dọc một đường đi từ S tới G, các số hạng \(h\) ở giữa triệt tiêu nhau từng cặp (như dãy “+h(A) − h(A)”). Chỉ còn lại:</p>
+\[\text{tổng Cost}' = \text{tổng Cost} + h(G) - h(S) = \text{tổng Cost} - h(S).\]
+<p>Mọi đường đi đều bị trừ <em>cùng một</em> hằng số \(h(S)\), nên đường tối ưu theo Cost' cũng là đường tối ưu theo Cost. Chạy UCS với Cost' cho ra độ ưu tiên \(g(s) + h(s) - h(S)\), tức là A* (trừ đi một hằng số không ảnh hưởng thứ tự). UCS chỉ đúng khi chi phí không âm, và \(\text{Cost}' \ge 0\) chính là điều kiện consistent. Vậy: <b>A* với heuristic consistent luôn tìm được đường tối ưu.</b></p>
+
+<div class="box example"><div class="box-h">Kiểm tra trên bản đồ</div>
+<p>Cạnh A→C: \(\text{Cost}' = 2 + h(C) - h(A) = 2 + 2 - 4 = 0\). Cạnh S→B: \(1 + 6 - 5 = 2\). Đi về phía đích “rẻ đi”, đi lệch hướng “đắt lên”. Mọi Cost' trên bản đồ này đều \(\ge 0\), nên heuristic ta chọn là consistent.</p>
+</div>
+
+<h3>Heuristic càng sát, A* càng nhanh</h3>
+<p>A* chỉ mở rộng những trạng thái có \(g(s) + h(s) \le\) chi phí tối ưu. Vì vậy \(h\) càng lớn (nhưng vẫn admissible), càng nhiều trạng thái bị loại. Hai trường hợp đặc biệt:</p>
+<ul>
+<li>\(h(s) = 0\) với mọi \(s\): A* trở thành UCS. Heuristic này đúng nhưng vô dụng.</li>
+<li>\(h(s) = \text{FutureCost}(s)\): A* chỉ đi thẳng trên đường tối ưu. Nhưng để có \(h\) này, ta phải giải xong bài toán rồi.</li>
+</ul>
+<p>Heuristic tốt nằm ở giữa: đủ sát để cắt nhiều, nhưng đủ rẻ để tính. Câu hỏi là làm sao chế ra nó.</p>
+
+<h2 id="relaxation"><span class="sec">4</span>Tạo heuristic bằng relaxation</h2>
+<p><strong>Ý tưởng:</strong> lấy bài toán gốc, <em>bỏ bớt ràng buộc</em> để được một bài toán dễ hơn (<span class="en">relaxed problem</span>). Rồi lấy chi phí tối ưu của bài dễ làm heuristic cho bài gốc. Vì bài dễ cho phép nhiều lựa chọn hơn, chi phí tối ưu của nó không thể lớn hơn bài gốc. Do đó heuristic tự động admissible. Hơn nữa, nó còn consistent, vì chi phí tối ưu của bất kỳ bài tìm kiếm nào đều thỏa bất đẳng thức tam giác.</p>
+
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Bài toán gốc</th><th>Bỏ ràng buộc nào</th><th>Heuristic thu được</th></tr>
+<tr><td>Đi trên lưới có tường</td><td>bỏ tường</td><td>khoảng cách Manhattan \(|\Delta x| + |\Delta y|\), tính ngay bằng công thức</td></tr>
+<tr><td>Bản đồ đường bộ</td><td>được đi đường thẳng</td><td>khoảng cách đường chim bay</td></tr>
+<tr><td>Đi bộ–tàu, ràng buộc “số lần đi tàu ≤ số lần đi bộ”</td><td>bỏ ràng buộc đó</td><td>FutureCost của bài không ràng buộc, tính sẵn bằng quy hoạch động ngược từ đích</td></tr>
+<tr><td>Trò xếp số 8 ô</td><td>ô được nhảy thẳng tới vị trí đúng</td><td>số ô đang sai chỗ</td></tr>
+</table></div>
+<p>Trường hợp thứ ba cho thấy điểm hay của relaxation. Bài gốc cần trạng thái \((\text{vị trí}, \text{số lần tàu} - \text{số lần bộ})\), lớn và có ràng buộc. Bài nới lỏng chỉ cần trạng thái là vị trí, đủ nhỏ để quy hoạch động tính trước toàn bộ. Nếu có nhiều heuristic consistent, \(\max(h_1, h_2)\) cũng consistent và còn sát hơn từng cái.</p>
+
+<div class="box recap"><div class="box-h">Tổng kết chương 2</div>
+<div class="tbl-wrap" style="margin:.4rem 0 0"><table class="tbl">
+<tr><th>Thuật toán</th><th>Điều kiện chi phí</th><th>Chu trình?</th><th>Ý tưởng một dòng</th></tr>
+<tr><td>BFS / DFS-ID</td><td>mọi cạnh bằng nhau</td><td>cần xử lý riêng</td><td>tìm lời giải ít bước nhất</td></tr>
+<tr><td>Quy hoạch động</td><td>bất kỳ</td><td>không</td><td>FutureCost tính ngược, ghi nhớ</td></tr>
+<tr><td>UCS</td><td>\(\ge 0\)</td><td>có</td><td>chốt trạng thái theo PastCost tăng dần</td></tr>
+<tr><td>A*</td><td>\(\ge 0\), \(h\) consistent</td><td>có</td><td>UCS ưu tiên \(g + h\), bớt khám phá lan man</td></tr>
+</table></div>
+</div>
+
+<div class="box link"><div class="box-h">Chương tiếp theo</div>
+<p>Tìm kiếm giả định thế giới <em>tất định</em>: đi tàu thì chắc chắn tới. Nhưng nếu tàu có thể hỏng giữa đường thì sao? Khi kết quả của hành động là ngẫu nhiên, một <em>chuỗi</em> hành động cố định không còn đủ. Ta cần biết phải làm gì trong <em>mọi</em> tình huống có thể xảy ra. Đó là bài toán quyết định Markov (MDP) ở chương 3.</p>
+</div>
+
+<details class="quiz"><summary>Tự kiểm tra: h(s) = 2 × khoảng cách chim bay có dùng được cho A* không?</summary><div class="ans"><p>Thường là không. Gấp đôi khoảng cách chim bay có thể lớn hơn chi phí thật còn lại, tức là vi phạm admissible. A* khi đó chạy nhanh hơn (cắt mạnh hơn) nhưng có thể trả về đường không tối ưu. Đây là một mánh “đánh đổi độ chính xác lấy tốc độ” có chủ ý (weighted A*), chứ không còn là A* đúng nghĩa.</p></div></details>
+<details class="quiz"><summary>Tự kiểm tra: vì sao UCS không chạy được với cạnh âm?</summary><div class="ans"><p>Lập luận chứng minh cần “đi thêm thì không rẻ đi”. Với cạnh âm, một trạng thái \(s\) đã chốt vẫn có thể được tới bằng đường rẻ hơn đi qua một cạnh âm phía sau. UCS đã đóng \(s\) nên bỏ lỡ đường đó.</p></div></details>
+
+<p class="src">Nguồn: Stanford CS221 Spring 2025 — <a href="https://stanford-cs221.github.io/spring2025/modules/">Search 2</a> (UCS, UCS correctness, structured perceptron, A*, A* relaxations); slide “Search II” của lớp.</p>
+
+</article></main></div>
+</body></html>

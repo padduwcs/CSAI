@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3.2 Value iteration và học tăng cường · CSAI</title>
+<meta name="description" content="Bài 3.2: value iteration, học tăng cường, model-based và model-free Monte Carlo, SARSA, Q-learning, epsilon-greedy, xấp xỉ hàm.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/katex/katex.min.css"><link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/vendor/katex/katex.min.js"></script><script defer src="assets/vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="assets/site.js"></script><script defer src="assets/sim.js"></script>
+</head>
+<body data-page="mdp-2">
+<div class="layout"><aside class="sidebar" id="sidebar"></aside>
+<main class="page" id="main"><article class="content">
+
+<header class="hero">
+  <div class="eyebrow">Chương 3 · Quyết định Markov · Bài 2</div>
+  <h1>Value iteration và học tăng cường</h1>
+  <p class="lead">Nửa đầu bài tìm chính sách tối ưu khi đã biết luật chơi (\(T\) và Reward). Nửa sau xét trường hợp thường gặp hơn ngoài đời: không ai cho ta biết luật chơi. Ta phải hành động, quan sát kết quả và tự rút ra cách chơi tốt. Đó là <em>học tăng cường</em>.</p>
+  <div class="meta">
+    <div><h4>Bạn sẽ hiểu</h4><ul><li>Value iteration tìm chính sách tối ưu ra sao</li><li>Học tăng cường khác MDP ở đâu</li><li>Monte Carlo, SARSA, Q-learning: giống và khác</li><li>Khám phá với ε-greedy; xấp xỉ hàm</li></ul></div>
+    <div><h4>Cần biết trước</h4><p style="margin:0">Bài 3.1: MDP, \(V_\pi\), \(Q_\pi\), đánh giá chính sách, \(\gamma\).</p></div>
+  </div>
+</header>
+
+<h2 id="value-iteration"><span class="sec">1</span>Value iteration: tìm chính sách tối ưu</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Bài 3.1 chấm điểm được một chính sách cho trước. Nhưng số chính sách là khổng lồ: với \(S\) trạng thái và mỗi trạng thái 2 hành động, có \(2^S\) chính sách. Không thể đánh giá từng cái. Cần một cách tìm thẳng chính sách tốt nhất.</p>
+</div>
+
+<p><strong>Ý tưởng:</strong> trong công thức đánh giá chính sách, ta làm theo hành động \(\pi(s)\) đã định sẵn. Giờ hãy để mỗi trạng thái <em>tự chọn</em> hành động tốt nhất, tức là thay \(\pi(s)\) bằng phép \(\max\). Đây là đúng tinh thần của FutureCost trong quy hoạch động (\(\min\) chi phí). Ở đây ta \(\max\) phần thưởng và thêm kỳ vọng:</p>
+\[V_{\text{opt}}(s) = \begin{cases} 0 & \text{IsEnd}(s) \\ \max\limits_{a\in\text{Actions}(s)} Q_{\text{opt}}(s,a) & \text{ngược lại} \end{cases}\qquad Q_{\text{opt}}(s,a) = \sum_{s'} T(s,a,s')\big[\text{Reward}(s,a,s') + \gamma V_{\text{opt}}(s')\big].\]
+<p>Phương trình này gọi là <dfn>phương trình Bellman</dfn>. Khi đã biết \(Q_{\text{opt}}\), chính sách tối ưu đơn giản là chọn hành động có Q lớn nhất:</p>
+\[\pi_{\text{opt}}(s) = \arg\max_{a} Q_{\text{opt}}(s,a).\]
+
+<div class="algo"><div class="algo-h">Value iteration <small>(Bellman, 1957)</small></div>
+<pre><code>V⁽⁰⁾(s) = 0 với mọi s
+for t = 1, 2, …:
+    for mỗi trạng thái s chưa kết thúc:
+        V⁽ᵗ⁾(s) = max_a Σ_{s'} T(s,a,s') · [Reward(s,a,s') + γ · V⁽ᵗ⁻¹⁾(s')]
+    dừng khi max_s |V⁽ᵗ⁾(s) − V⁽ᵗ⁻¹⁾(s)| đủ nhỏ</code></pre></div>
+
+<p>Giống đánh giá chính sách, \(V^{(t)}(s)\) là giá trị tốt nhất có thể đạt nếu chỉ được đi \(t\) bước. Trên trò chơi xúc xắc: \(V^{(1)} = \max(\text{quit: }10,\ \text{stay: }4) = 10\). Vòng 2: stay cho \(4 + \frac23\cdot10 = 10.67\) và vượt quit. Từ vòng này trở đi, chính sách đổi sang “stay”. Hãy bấm từng bước:</p>
+
+<div class="sim" data-sim="vi"><script type="application/json">{"title":"Value iteration · trò chơi xúc xắc","sub":"Hai hành động: quit (+10, kết thúc) và stay (+4, 2/3 chơi tiếp)","states":["in","end"],"end":["end"],"gamma":1,"iters":25,"focus":"in","T":{"in":{"quit":[["end",1,10]],"stay":[["in",0.6666666667,4],["end",0.3333333333,4]]}}}</script></div>
+
+<p>Ở vòng 1, nhìn xa đúng một bước, quit thắng vì 10 &gt; 4. Từ vòng 2, khi đã “thấy” được tương lai, stay vượt lên và hội tụ về 12, đúng giá trị đã tính tay ở bài 3.1. Chính sách tối ưu là luôn stay.</p>
+
+<h3>Ví dụ lớn hơn: tàu hay hỏng</h3>
+<p>Bài đi bộ–tàu với \(n = 10\). Đi bộ tốn 1 (thưởng −1). Đi tàu tốn 2, và chỉ tới \(2s\) với xác suất 0.5, nếu không thì đứng yên. Chọn trạng thái bất kỳ trong danh sách để xem chi tiết phép tính Q:</p>
+
+<div class="sim" data-sim="vi"><script type="application/json">{"title":"Value iteration · đi bộ / tàu hỏng (n = 10)","sub":"Thưởng = −chi phí; tàu thành công với xác suất 0.5","states":["1","2","3","4","5","6","7","8","9","10"],"end":["10"],"gamma":1,"iters":30,"focus":"5","T":{"1":{"bộ":[["2",1,-1]],"tàu":[["2",0.5,-2],["1",0.5,-2]]},"2":{"bộ":[["3",1,-1]],"tàu":[["4",0.5,-2],["2",0.5,-2]]},"3":{"bộ":[["4",1,-1]],"tàu":[["6",0.5,-2],["3",0.5,-2]]},"4":{"bộ":[["5",1,-1]],"tàu":[["8",0.5,-2],["4",0.5,-2]]},"5":{"bộ":[["6",1,-1]],"tàu":[["10",0.5,-2],["5",0.5,-2]]},"6":{"bộ":[["7",1,-1]]},"7":{"bộ":[["8",1,-1]]},"8":{"bộ":[["9",1,-1]]},"9":{"bộ":[["10",1,-1]]}}}</script></div>
+
+<p>Sau khoảng 20 vòng, giá trị hội tụ: \(V(1) = -8\), tức là đi từ 1 tới 10 tốn trung bình 8 phút. Chính sách tối ưu: đi bộ ở mọi nơi, <b>trừ khu 5</b>, nơi nên đi tàu. Ở khu 5, chuyến tàu đưa thẳng tới 10. Dù phải thử trung bình 2 lần (tốn 4 phút), vẫn rẻ hơn đi bộ 5 bước. Ở khu 2, khi tàu không hỏng (chương 2), đi tàu tốt ngang đi bộ. Giờ tàu hay hỏng, đi tàu từ khu 2 tốn trung bình 9 so với 7 nếu đi bộ. Bất định đã thay đổi quyết định. Tổng chi phí cũng tăng từ 6 (chương 2) lên 8.</p>
+
+<div class="box pitfall"><div class="box-h">Dễ nhầm · Đánh giá chính sách và value iteration</div>
+<p>Hai thuật toán gần như cùng một dòng code. <b>Đánh giá chính sách</b> dùng \(\pi(s)\) có sẵn và trả lời “chính sách này được bao nhiêu điểm?”. <b>Value iteration</b> dùng \(\max_a\) và trả lời “cách tốt nhất được bao nhiêu điểm, và đó là cách nào?”. Cả hai đều hội tụ khi \(\gamma < 1\) hoặc khi đồ thị MDP không có chu trình. Mỗi vòng value iteration tốn \(O(S\cdot A\cdot S')\).</p>
+</div>
+
+<h2 id="rl"><span class="sec">2</span>Học tăng cường: khi không biết luật chơi</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Bạn mới chuyển tới một thành phố. Bạn không biết tuyến xe buýt nào hay trễ (không biết \(T\)), cũng không biết quán ăn nào ngon (không biết Reward). Value iteration cần cả hai thứ này nên vô dụng. Cách duy nhất là <b>thử</b>: đi, quan sát, rồi điều chỉnh.</p>
+</div>
+
+<p>Đó là <dfn>học tăng cường</dfn> (<span class="en">reinforcement learning</span>, RL). Agent tương tác với môi trường theo một vòng lặp:</p>
+
+<figure class="fig">
+<svg viewBox="0 0 520 170" role="img" aria-label="Vòng lặp agent và môi trường">
+  <defs><marker id="m6a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" class="arrow-head"/></marker></defs>
+  <rect x="40" y="55" width="150" height="60" rx="12" class="nd-acc"/><text x="115" y="82" text-anchor="middle" class="t-b">Agent</text><text x="115" y="100" text-anchor="middle" class="t-small t-muted">giữ Q̂ hoặc π</text>
+  <rect x="330" y="55" width="150" height="60" rx="12" class="nd-ch"/><text x="405" y="82" text-anchor="middle" class="t-b">Môi trường</text><text x="405" y="100" text-anchor="middle" class="t-small t-muted">T, Reward ẩn</text>
+  <path d="M190,70 C240,30 280,30 330,70" class="ln-ink" marker-end="url(#m6a)"/>
+  <path d="M330,100 C280,140 240,140 190,100" class="ln-ink" marker-end="url(#m6a)"/>
+  <text x="260" y="30" text-anchor="middle" class="t-small t-b">hành động a</text>
+  <text x="260" y="158" text-anchor="middle" class="t-small t-b">phần thưởng r, trạng thái mới s′</text>
+</svg>
+<figcaption><b>Vòng lặp học tăng cường.</b> Agent chọn hành động. Môi trường (với luật ẩn) trả về phần thưởng và trạng thái mới. Dữ liệu agent thu được là một chuỗi \(s_0;\ a_1, r_1, s_1;\ a_2, r_2, s_2;\ \dots\). Từ các bộ \((s, a, r, s')\) này, agent phải học ra cách hành động tốt.</figcaption>
+</figure>
+
+<p>Có hai hướng lớn: <b>dựa trên mô hình</b> (học lại \(T\), Reward rồi giải MDP) và <b>không cần mô hình</b> (học thẳng giá trị Q). Ta đi lần lượt.</p>
+
+<h2 id="model-based"><span class="sec">3</span>Model-based Monte Carlo</h2>
+<p><strong>Ý tưởng:</strong> nếu không biết \(T\) thì <em>đếm</em>. Xác suất tới \(s'\) khi làm \(a\) ở \(s\) được ước lượng bằng tỉ lệ số lần điều đó xảy ra trong dữ liệu:</p>
+\[\hat T(s, a, s') = \frac{\#\text{lần thấy }(s, a, s')}{\#\text{lần thấy }(s, a)}, \qquad \widehat{\text{Reward}}(s,a,s') = \text{phần thưởng quan sát được}.\]
+<div class="box example"><div class="box-h">Ví dụ · Trò chơi xúc xắc, không biết luật</div>
+<p>Chơi stay 10 lần ở trạng thái in, thấy 7 lần quay lại in và 3 lần sang end, lần nào cũng nhận 4. Ước lượng: \(\hat T(\text{in}, \text{stay}, \text{in}) = 0.7\), \(\hat T(\text{in}, \text{stay}, \text{end}) = 0.3\). Khá gần với \(2/3\) và \(1/3\) thật. Sau đó chạy value iteration trên MDP ước lượng này.</p>
+</div>
+<p><b>Vấn đề:</b> nếu agent chưa bao giờ thử quit, sẽ không có dữ liệu cho \((\text{in}, \text{quit})\), và agent không biết quit tốt hay dở. Agent phải <em>chủ động khám phá</em> những hành động chưa thử (mục 7).</p>
+
+<h2 id="model-free"><span class="sec">4</span>Model-free Monte Carlo</h2>
+<p>Thật ra ta không cần \(T\). Thứ cần để ra quyết định chỉ là \(Q(s,a)\). Vì \(Q_\pi(s,a)\) là utility <em>kỳ vọng</em> sau khi làm \(a\) ở \(s\), ta có thể ước lượng nó bằng cách <strong>lấy trung bình các utility thật quan sát được</strong> sau mỗi lần làm \(a\) ở \(s\).</p>
+<p>Viết dưới dạng cập nhật dần (không cần lưu hết dữ liệu): mỗi khi thấy \((s,a)\) theo sau bởi utility \(u\) (tổng phần thưởng từ đó tới hết ván),</p>
+\[\hat Q_\pi(s,a) \leftarrow (1 - \eta)\,\hat Q_\pi(s,a) + \eta\, u, \qquad \eta = \frac{1}{1 + \#\text{lần đã cập nhật}(s,a)}.\]
+<p>Công thức này là phép <em>pha trộn</em>: giữ \(1-\eta\) phần ước lượng cũ, lấy \(\eta\) phần từ dữ liệu mới. Với \(\eta\) như trên, nó cho đúng trung bình cộng. Ví dụ ba ván “luôn stay” ở bài 3.1 có utility 4, 8, 16. Lần lượt: \(\hat Q = 4\), rồi \(\frac12\cdot4 + \frac12\cdot8 = 6\), rồi \(\frac23\cdot6 + \frac13\cdot16 = 9.33\). Càng nhiều ván, \(\hat Q\) càng gần 12.</p>
+<p>Đây là thuật toán <dfn>on-policy</dfn>: nó ước lượng \(Q_\pi\) của chính chính sách đang được dùng để chơi.</p>
+
+<h2 id="sarsa"><span class="sec">5</span>SARSA: không cần chờ hết ván</h2>
+<p>Monte Carlo có hai nhược điểm. Nó phải chờ <b>hết ván</b> mới biết \(u\), mà có ván rất dài. Và \(u\) <b>dao động mạnh</b> (4, 8, 16…), nên cần rất nhiều ván để trung bình ổn định.</p>
+<p><strong>Ý tưởng của SARSA:</strong> ngay sau một bước \((s, a, r, s')\), và biết hành động tiếp theo \(a'\), ta thay phần tương lai chưa biết bằng <em>ước lượng hiện tại</em> của chính nó, \(\hat Q(s', a')\). Mục tiêu cập nhật là “phần thưởng thật vừa nhận + giá trị ước lượng phần còn lại”:</p>
+\[\hat Q_\pi(s,a) \leftarrow (1-\eta)\,\hat Q_\pi(s,a) + \eta\,\big[\underbrace{r + \gamma\,\hat Q_\pi(s', a')}_{\text{mục tiêu}}\big].\]
+<p>Tên SARSA đến từ năm thứ cần dùng: \(s, a, r, s', a'\). Kỹ thuật dùng ước lượng để cập nhật ước lượng gọi là <dfn>bootstrapping</dfn>.</p>
+
+<div class="compare">
+<div><h4>Model-free Monte Carlo</h4><p>Mục tiêu là \(u\) thật, tính tới hết ván. <b>Không thiên lệch</b> (đúng trung bình) nhưng <b>phương sai lớn</b>. Phải chờ hết ván.</p></div>
+<div><h4>SARSA</h4><p>Mục tiêu là \(r + \gamma\hat Q(s',a')\). <b>Có thiên lệch</b> (vì dựa vào ước lượng, có thể đang sai) nhưng <b>phương sai nhỏ</b>. Cập nhật ngay sau mỗi bước.</p></div>
+</div>
+
+<h2 id="q-learning"><span class="sec">6</span>Q-learning: học cách chơi tối ưu khi đang chơi khác</h2>
+<p>Monte Carlo và SARSA đều ước lượng \(Q_\pi\) của chính sách <em>đang dùng</em>. Nhưng ta muốn \(Q_{\text{opt}}\). Nhìn lại phương trình Bellman: \(Q_{\text{opt}}\) dùng \(\max_{a'}\) ở bước sau. Vậy chỉ cần đổi mục tiêu của SARSA từ \(\hat Q(s', a')\) (hành động <em>thực sự</em> sẽ làm) sang \(\max_{a'}\hat Q(s', a')\) (hành động <em>tốt nhất</em> có thể làm):</p>
+\[\hat Q_{\text{opt}}(s,a) \leftarrow (1-\eta)\,\hat Q_{\text{opt}}(s,a) + \eta\,\big[r + \gamma \max_{a'\in\text{Actions}(s')}\hat Q_{\text{opt}}(s', a')\big].\]
+<p>Q-learning là <dfn>off-policy</dfn>: agent có thể chơi “lung tung” để khám phá, nhưng vẫn học ra giá trị của cách chơi tối ưu.</p>
+
+<div class="box example"><div class="box-h">Ví dụ · Q-learning và SARSA trên trò xúc xắc (\(\eta = 0.5\), \(\gamma = 1\), \(\hat Q\) khởi tạo 0)</div>
+<div class="tbl-wrap" style="margin:.5rem 0"><table class="tbl">
+<tr><th>Bước quan sát \((s,a,r,s')\)</th><th>Mục tiêu</th><th>Cập nhật</th></tr>
+<tr><td>(in, stay, 4, in)</td><td>\(4 + \max(\hat Q(\text{in},\text{stay}){=}0,\ \hat Q(\text{in},\text{quit}){=}0) = 4\)</td><td>\(\hat Q(\text{in},\text{stay}) = 0.5\cdot0 + 0.5\cdot4 = 2\)</td></tr>
+<tr><td>(in, stay, 4, end)</td><td>\(4 + 0 = 4\) (end có giá trị 0)</td><td>\(\hat Q(\text{in},\text{stay}) = 0.5\cdot2 + 0.5\cdot4 = 3\)</td></tr>
+<tr><td>(in, quit, 10, end)</td><td>\(10\)</td><td>\(\hat Q(\text{in},\text{quit}) = 0.5\cdot0 + 0.5\cdot10 = 5\)</td></tr>
+<tr class="hl"><td>(in, stay, 4, in), sau đó agent định <b>stay</b></td><td><b>Q-learning:</b> \(4 + \max(3, 5) = 9\)<br><b>SARSA:</b> \(4 + \hat Q(\text{in},\text{stay}) = 4 + 3 = 7\)</td><td>Q-learning: \(0.5\cdot3 + 0.5\cdot9 = 6\)<br>SARSA: \(0.5\cdot3 + 0.5\cdot7 = 5\)</td></tr>
+</table></div>
+<p>Dòng cuối cho thấy khác biệt cốt lõi. SARSA hỏi “với hành động mình <em>sẽ</em> làm, tương lai đáng bao nhiêu?”. Q-learning hỏi “nếu mình làm điều <em>tốt nhất</em>, tương lai đáng bao nhiêu?”.</p>
+</div>
+
+<h2 id="explore"><span class="sec">7</span>Khám phá và khai thác: ε-greedy</h2>
+<div class="box problem"><div class="box-h">Thế khó</div>
+<p>Bạn đã ăn quán A năm lần và thấy khá ngon. Nếu lần nào cũng chọn A (<b>khai thác</b>, <span class="en">exploitation</span>), bạn không bao giờ biết quán B bên cạnh có ngon hơn không. Nếu lần nào cũng thử quán mới (<b>khám phá</b>, <span class="en">exploration</span>), bạn ăn dở nhiều bữa. Agent RL gặp đúng thế khó này: hành động chưa thử thì ước lượng của nó vẫn bằng 0, nên tham lam thuần túy sẽ không bao giờ chọn tới.</p>
+</div>
+<p>Lời giải đơn giản và rất phổ biến là chính sách <dfn>ε-greedy</dfn>:</p>
+\[\pi_{\text{act}}(s) = \begin{cases} \arg\max_a \hat Q_{\text{opt}}(s,a) & \text{với xác suất } 1-\varepsilon \quad\text{(khai thác)} \\ \text{một hành động ngẫu nhiên} & \text{với xác suất } \varepsilon \quad\text{(khám phá)} \end{cases}\]
+<p>\(\varepsilon\) (epsilon) thường bắt đầu lớn (khám phá nhiều khi chưa biết gì) rồi giảm dần (khai thác khi đã hiểu môi trường). Với \(\varepsilon = 0\), agent có thể kẹt mãi ở lựa chọn đầu tiên có vẻ ổn. Với \(\varepsilon = 1\), agent không bao giờ dùng những gì đã học.</p>
+
+<h2 id="function-approx"><span class="sec">8</span>Xấp xỉ hàm: khi có quá nhiều trạng thái</h2>
+<p>Bảng \(\hat Q(s,a)\) chỉ dùng được khi số trạng thái nhỏ. Cờ vây có khoảng \(10^{170}\) trạng thái, và agent không bao giờ gặp lại cùng một thế cờ để cập nhật ô bảng của nó. Ta cần <b>tổng quát hóa</b>: trạng thái mới nhưng giống trạng thái cũ thì nên có giá trị gần nhau. Đây đúng là việc của học máy (chương 1):</p>
+\[\hat Q_{\text{opt}}(s, a; w) = w\cdot\phi(s,a).\]
+<p>Q-learning trở thành một bước gradient descent cho squared loss giữa dự đoán và mục tiêu:</p>
+\[w \leftarrow w - \eta\,\big[\underbrace{\hat Q_{\text{opt}}(s,a;w)}_{\text{dự đoán}} - \underbrace{(r + \gamma\max_{a'}\hat Q_{\text{opt}}(s',a';w))}_{\text{mục tiêu}}\big]\,\phi(s,a).\]
+<p>So với bài 1.1: phần dư = dự đoán − mục tiêu, nhân với đặc trưng. Thay \(w\cdot\phi\) bằng mạng nơ-ron, ta có <em>deep Q-learning</em>, nền tảng của các hệ thống chơi game Atari ở mức con người.</p>
+
+<div class="box recap"><div class="box-h">Tổng kết chương 3</div>
+<div class="tbl-wrap" style="margin:.4rem 0 0"><table class="tbl">
+<tr><th>Thuật toán</th><th>Cần biết T, Reward?</th><th>Ước lượng gì</th><th>Mục tiêu cập nhật</th><th>On/Off-policy</th></tr>
+<tr><td>Đánh giá chính sách</td><td>có</td><td>\(V_\pi\)</td><td>\(\sum T[R + \gamma V]\)</td><td>—</td></tr>
+<tr><td>Value iteration</td><td>có</td><td>\(V_{\text{opt}}\)</td><td>\(\max_a\sum T[R + \gamma V]\)</td><td>—</td></tr>
+<tr><td>Model-based MC</td><td>không, đếm để ước lượng</td><td>\(\hat T, \widehat{R}\), rồi giải MDP</td><td>—</td><td>off</td></tr>
+<tr><td>Model-free MC</td><td>không</td><td>\(Q_\pi\)</td><td>\(u\) (utility thật)</td><td>on</td></tr>
+<tr><td>SARSA</td><td>không</td><td>\(Q_\pi\)</td><td>\(r + \gamma\hat Q(s',a')\)</td><td>on</td></tr>
+<tr><td>Q-learning</td><td>không</td><td>\(Q_{\text{opt}}\)</td><td>\(r + \gamma\max_{a'}\hat Q(s',a')\)</td><td>off</td></tr>
+</table></div>
+</div>
+
+<div class="box link"><div class="box-h">Chương tiếp theo</div>
+<p>Trong MDP, may rủi đến từ “tự nhiên”, và tự nhiên không có mục đích. Nếu bên kia là một <em>đối thủ</em> chủ động chọn nước đi gây bất lợi cho ta thì sao? Lấy trung bình không còn hợp lý nữa. Chương 4 (trò chơi) thay phép kỳ vọng bằng phép \(\min\) của đối thủ.</p>
+</div>
+
+<details class="quiz"><summary>Tự kiểm tra: vì sao Q-learning cần ε-greedy mà vẫn học đúng Q_opt?</summary><div class="ans"><p>Mục tiêu của Q-learning luôn dùng \(\max_{a'}\), không phụ thuộc hành động thực sự được chọn tiếp theo. Vì vậy những bước khám phá ngẫu nhiên không “làm bẩn” ước lượng \(Q_{\text{opt}}\). Ngược lại, khám phá là cần thiết để mọi cặp \((s,a)\) đều được thử đủ nhiều lần. Nếu một hành động không bao giờ được thử, Q của nó không bao giờ được cập nhật.</p></div></details>
+<details class="quiz"><summary>Tự kiểm tra: trong bài tàu hỏng, nếu xác suất tàu thành công chỉ còn 0.2 thì ở khu 5 còn nên đi tàu không?</summary><div class="ans"><p>Kỳ vọng số lần thử là \(1/0.2 = 5\), mỗi lần tốn 2, tổng 10 phút. Đi bộ từ 5 tới 10 chỉ tốn 5. Vậy không nên đi tàu nữa. Bạn có thể kiểm chứng bằng cách sửa xác suất trong cấu hình mô phỏng.</p></div></details>
+
+<p class="src">Nguồn: Stanford CS221 Spring 2025 — <a href="https://stanford-cs221.github.io/spring2025/modules/">MDPs 2</a> (value iteration, reinforcement learning, model-based/model-free Monte Carlo, SARSA, Q-learning, epsilon-greedy, function approximation).</p>
+
+</article></main></div>
+</body></html>

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>1.2 Đặc trưng phi tuyến và mạng nơ-ron · CSAI</title>
+<meta name="description" content="Bài 1.2: Group DRO, đặc trưng phi tuyến, feature templates, mạng nơ-ron và lan truyền ngược — giảng bằng tiếng Việt.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/katex/katex.min.css"><link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/vendor/katex/katex.min.js"></script><script defer src="assets/vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="assets/site.js"></script><script defer src="assets/sim.js"></script>
+</head>
+<body data-page="ml-2">
+<div class="layout"><aside class="sidebar" id="sidebar"></aside>
+<main class="page" id="main"><article class="content">
+
+<header class="hero">
+  <div class="eyebrow">Chương 1 · Học máy · Bài 2</div>
+  <h1>Đặc trưng phi tuyến, mạng nơ-ron và lan truyền ngược</h1>
+  <p class="lead">Bài trước đã có một khung học hoàn chỉnh: điểm số \(w\cdot\phi(x)\), một hàm loss và gradient descent. Bài này đặt ra ba câu hỏi mà khung đó chưa trả lời, và mỗi câu dẫn tới một ý tưởng mới.</p>
+  <div class="meta">
+    <div><h4>Ba câu hỏi của bài</h4><ul><li>Mô hình tốt “trung bình” có tốt với <em>mọi nhóm</em> không? → Group DRO</li><li>Dữ liệu cong thì sao? → đặc trưng phi tuyến, mạng nơ-ron</li><li>Hàng triệu tham số thì lấy gradient thế nào? → lan truyền ngược</li></ul></div>
+    <div><h4>Cần biết trước</h4><p style="margin:0">Bài 1.1: \(w\cdot\phi(x)\), squared loss, hinge loss, gradient descent.</p></div>
+  </div>
+</header>
+
+<h2 id="group-dro"><span class="sec">1</span>Group DRO: đừng để trung bình che giấu một nhóm</h2>
+
+<div class="box problem"><div class="box-h">Vấn đề thực tế</div>
+<p>Năm 2018, nghiên cứu <em>Gender Shades</em> kiểm tra ba hệ thống nhận diện giới tính qua ảnh khuôn mặt của các công ty lớn. Độ chính xác trung bình rất cao. Với nhóm nam da sáng, kết quả gần như hoàn hảo. Nhưng với nhóm nữ da tối, tỉ lệ lỗi cao hơn rõ rệt. Con số “trung bình” đẹp đã che giấu một nhóm bị phục vụ kém.</p>
+</div>
+
+<p>Vì sao chuyện này xảy ra? Hãy nhớ lại: ta học bằng cách tối thiểu TrainLoss, tức là loss <em>trung bình trên từng ví dụ</em>. Nếu một nhóm chiếm phần lớn dữ liệu, mô hình sẽ ưu tiên làm tốt cho nhóm đó, vì đó là cách nhanh nhất để kéo trung bình xuống. Nhóm thiểu số ít ảnh hưởng tới trung bình, nên dễ bị “hy sinh”.</p>
+
+<div class="box example"><div class="box-h">Ví dụ (từ slide của lớp)</div>
+<p>Sáu điểm dữ liệu chia thành hai nhóm, mô hình chỉ có một tham số: \(f_w(x) = wx\).</p>
+<div class="tbl-wrap" style="margin:.6rem 0"><table class="tbl">
+<tr><th class="n">\(x\)</th><th class="n">1</th><th class="n">2</th><th class="n">5</th><th class="n">6</th><th class="n">7</th><th class="n">8</th></tr>
+<tr><td class="n">\(y\)</td><td class="n">4</td><td class="n">8</td><td class="n">5</td><td class="n">6</td><td class="n">7</td><td class="n">8</td></tr>
+<tr><td class="n">Nhóm \(g\)</td><td class="n">A</td><td class="n">A</td><td class="n">B</td><td class="n">B</td><td class="n">B</td><td class="n">B</td></tr>
+</table></div>
+<p>Nhóm A (2 điểm) theo quy luật \(y = 4x\). Nhóm B (4 điểm) theo quy luật \(y = x\). Thử \(w = 1\): nhóm B khớp hoàn hảo (loss 0). Nhóm A có loss từng điểm là \((1-4)^2 = 9\) và \((2-8)^2 = 36\).</p>
+<ul>
+<li>Loss trung bình toàn bộ: \((9 + 36 + 0+0+0+0)/6 = 7.5\). Nghe có vẻ chấp nhận được.</li>
+<li>Loss riêng nhóm A: \((9+36)/2 = 22.5\). Loss riêng nhóm B: \(0\).</li>
+</ul>
+</div>
+
+<p><strong>Ý tưởng cốt lõi</strong> của Group DRO (<span class="en">Group Distributionally Robust Optimization</span>) là thay vì giảm loss trung bình, ta giảm loss của <em>nhóm đang chịu thiệt nhất</em>:</p>
+\[\text{TrainLoss}_{\max}(w) = \max_{g}\ \text{TrainLoss}_g(w), \qquad \text{mục tiêu: } \min_w \text{TrainLoss}_{\max}(w).\]
+<p>Trong đó \(\text{TrainLoss}_g\) là loss trung bình chỉ tính trên các điểm thuộc nhóm \(g\). Ký hiệu \(\max_g\) nghĩa là “lấy giá trị lớn nhất khi xét qua mọi nhóm”. Với \(w=1\): \(\text{TrainLoss}_{\max} = \max(22.5, 0) = 22.5\). Con số này phản ánh đúng việc nhóm A đang bị bỏ rơi.</p>
+
+<figure class="fig">
+<svg viewBox="0 0 420 270" role="img" aria-label="Loss của nhóm A, nhóm B, trung bình và max theo w">
+  <g class="grid"><line x1="50" y1="230" x2="390" y2="230"/><line x1="50" y1="20" x2="50" y2="230"/><line x1="50" y1="125" x2="390" y2="125" stroke-dasharray="2 4"/></g>
+  <text x="50" y="248" text-anchor="middle" class="t-small t-muted">0.6</text><text x="135" y="248" text-anchor="middle" class="t-small t-muted">1.0</text><text x="220" y="248" text-anchor="middle" class="t-small t-muted">1.4</text><text x="305" y="248" text-anchor="middle" class="t-small t-muted">1.8</text><text x="390" y="248" text-anchor="middle" class="t-small t-muted">2.2 w</text>
+  <text x="44" y="234" text-anchor="end" class="t-small t-muted">0</text><text x="44" y="129" text-anchor="end" class="t-small t-muted">20</text><text x="44" y="24" text-anchor="end" class="t-small t-muted">40</text>
+  <path d="M50,78 L61,83 L71,87 L82,91 L92,96 L103,100 L114,104 L124,108 L135,112 L146,116 L156,120 L167,123 L178,127 L188,131 L199,134 L209,138 L220,141 L231,145 L241,148 L252,151 L262,154 L273,158 L284,161 L294,164 L305,166 L316,169 L326,172 L337,175 L347,178 L358,180 L369,183 L379,185 L390,187" class="ln" style="stroke:var(--chance);stroke-width:1.8"/>
+  <path d="M50,193 L61,202 L71,209 L82,216 L92,221 L103,225 L114,228 L124,229 L135,230 L146,229 L156,228 L167,225 L178,221 L188,216 L199,209 L209,202 L220,193 L231,184 L241,173 L252,161 L262,148 L273,134 L284,118 L294,102 L305,84 L316,65 L326,45 L337,24 L347,20" class="ln" style="stroke:var(--violet);stroke-width:1.8"/>
+  <path d="M50,155 L61,162 L71,169 L82,174 L92,179 L103,183 L114,186 L124,189 L135,191 L146,192 L156,192 L167,191 L178,190 L188,187 L199,184 L209,181 L220,176 L231,171 L241,165 L252,158 L262,150 L273,142 L284,132 L294,122 L305,111 L316,100 L326,87 L337,74 L347,60 L358,46 L369,30 L377,20" class="ln-dash" style="stroke-width:2"/>
+  <path d="M50,78 L61,83 L71,87 L82,91 L92,96 L103,100 L114,104 L124,108 L135,112 L146,116 L156,120 L167,123 L178,127 L188,131 L199,134 L209,138 L220,141 L231,145 L241,148 L252,151 L258,153 L262,148 L273,134 L284,118 L294,102 L305,84 L316,65 L326,45 L337,24 L341,20" class="ln-acc" style="stroke-width:3.4;opacity:.75"/>
+  <circle cx="153" cy="192" r="5" class="f-ink"/><text x="153" y="168" text-anchor="middle" class="t-small t-b">học chuẩn: w ≈ 1.09</text>
+  <circle cx="258" cy="153" r="6" class="f-acc"/><line x1="260" y1="160" x2="268" y2="194" class="ln-dash"/><text x="270" y="207" class="t-small t-acc t-b">Group DRO: w ≈ 1.58</text>
+  <text x="60" y="64" class="t-small t-ch t-b">loss nhóm A</text><text x="322" y="118" class="t-small t-b" style="fill:var(--violet)">loss nhóm B</text>
+  <text x="300" y="140" class="t-small t-muted">trung bình</text><text x="305" y="58" text-anchor="end" class="t-small t-acc t-b">max của hai nhóm</text>
+</svg>
+<figcaption><b>Hai mục tiêu cho hai đáp án khác nhau.</b> Đường đứt là loss trung bình, đáy của nó ở \(w \approx 1.09\). Tại đó nhóm B gần như hoàn hảo, nhưng nhóm A vẫn chịu loss ≈ 21. Đường xanh đậm là loss của nhóm tệ nhất (lấy max của hai đường cam và tím). Đáy của nó ở \(w\approx 1.58\), đúng chỗ hai nhóm có loss bằng nhau (≈ 14.6). Group DRO chấp nhận làm B kém đi một chút để A bớt thiệt.</figcaption>
+</figure>
+
+<h3>Tối ưu bằng gradient descent</h3>
+<p>Gradient của một hàm max chính là gradient của thành phần đang lớn nhất. Vì vậy mỗi bước gồm hai việc. Đầu tiên, tìm nhóm đang tệ nhất \(g^* = \arg\max_g \text{TrainLoss}_g(w)\); ký hiệu \(\arg\max\) trả về <em>nhóm đạt</em> giá trị lớn nhất chứ không phải bản thân giá trị đó. Sau đó, đi một bước gradient chỉ cho nhóm ấy: \(w \leftarrow w - \eta\nabla_w\text{TrainLoss}_{g^*}(w)\).</p>
+<div class="box example"><div class="box-h">Ví dụ · Một bước</div>
+<p>Tại \(w = 1\), nhóm tệ nhất là A. \(\text{TrainLoss}_A(w) = \frac{(w-4)^2 + (2w-8)^2}{2} = \frac52(w-4)^2\), nên đạo hàm là \(5(w-4)\). Tại \(w=1\), đạo hàm bằng \(-15\). Với \(\eta = 0.01\): \(w \leftarrow 1 - 0.01\times(-15) = 1.15\). Mô hình dịch về phía phục vụ nhóm A tốt hơn.</p>
+</div>
+
+<div class="box pitfall"><div class="box-h">Dễ nhầm</div>
+<p>Group DRO <b>không đổi lớp giả thuyết</b>: mô hình vẫn là \(wx\). Nó chỉ đổi <b>cách tổng hợp loss</b> (câu hỏi ② trong ba câu hỏi thiết kế), từ “trung bình theo ví dụ” sang “max theo nhóm”. Nó cũng cần biết mỗi ví dụ thuộc nhóm nào khi huấn luyện.</p>
+</div>
+
+<p>Group DRO cho mô hình công bằng hơn, nhưng mô hình vẫn chỉ là đường thẳng. Nếu dữ liệu vốn không thẳng thì sao? Đó là câu hỏi tiếp theo.</p>
+
+<h2 id="phi-tuyen"><span class="sec">2</span>Đặc trưng phi tuyến</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Giá thuê phòng theo khoảng cách tới trung tâm: quá gần thì ồn và đắt, vừa phải thì được chuộng nhất, quá xa thì rẻ. Dữ liệu tạo thành một đường <em>cong lên rồi cong xuống</em>. Mọi đường thẳng \(w_0 + w_1x\) đều chỉ có thể đi lên hoặc đi xuống, nên không bao giờ khớp được dữ liệu này.</p>
+</div>
+
+<p><strong>Ý tưởng</strong> rất đơn giản: giữ nguyên \(w\cdot\phi(x)\), nhưng cho \(\phi(x)\) chứa thêm những phép biến đổi của \(x\). Thử \(\phi(x) = [1,\ x,\ x^2]\):</p>
+\[f_w(x) = w\cdot\phi(x) = w_0 + w_1 x + w_2 x^2.\]
+<p>Đây là một parabol. Với \(w = [2, 1, -0.2]\), ta có \(f(0) = 2\), \(f(2.5) = 3.25\) (đỉnh), \(f(5) = 2\). Đường cong lên rồi xuống, đúng như dữ liệu.</p>
+
+<figure class="fig">
+<svg viewBox="0 0 400 250" role="img" aria-label="Đặc trưng bậc hai tạo đường cong">
+  <g class="grid"><line x1="40" y1="220" x2="380" y2="220"/><line x1="40" y1="20" x2="40" y2="220"/></g>
+  <text x="380" y="238" text-anchor="end" class="t-small t-muted">khoảng cách x</text><text x="46" y="30" class="t-small t-muted">giá y</text>
+  <line x1="40" y1="150" x2="370" y2="90" class="ln-dash" style="stroke:var(--min)"/>
+  <text x="60" y="178" class="t-small t-min">đường thẳng: không khớp</text>
+  <path d="M40,124 L54,113 L68,102 L81,93 L95,86 L109,79 L122,74 L136,69 L150,66 L164,65 L178,64 L191,65 L205,66 L219,69 L232,74 L246,79 L260,86 L274,93 L288,102 L301,113 L315,124 L329,137 L342,150 L356,165 L370,182" class="ln-acc"/>
+  <g class="f-ink"><circle cx="68" cy="111" r="5"/><circle cx="106" cy="79" r="5"/><circle cx="150" cy="71" r="5"/><circle cx="183" cy="61" r="5"/><circle cx="222" cy="66" r="5"/><circle cx="260" cy="100" r="5"/><circle cx="298" cy="127" r="5"/><circle cx="337" cy="133" r="5"/></g>
+  <text x="196" y="46" text-anchor="middle" class="t-small t-acc t-b">φ(x) = [1, x, x²] → parabol</text>
+</svg>
+<figcaption><b>Cùng một thuật toán, đặc trưng giàu hơn.</b> Thêm \(x^2\) vào vector đặc trưng cho phép \(w\cdot\phi(x)\) vẽ được đường cong. Thuật toán học không đổi gì: vẫn squared loss, vẫn gradient descent. Chỉ có \(\phi\) thay đổi.</figcaption>
+</figure>
+
+<div class="box pitfall"><div class="box-h">Dễ nhầm · “Tuyến tính” theo cái gì?</div>
+<p>Mô hình \(w_0 + w_1x + w_2x^2\) <b>phi tuyến theo \(x\)</b> (đồ thị cong), nhưng vẫn <b>tuyến tính theo \(w\)</b> (chỉ là tổng các \(w_j\) nhân với một con số). Trong học máy, chữ “tuyến tính” nói về mối quan hệ với \(w\). Đây là điều rất có lợi: loss vẫn có dạng “cái bát” đơn giản, nên gradient descent vẫn dễ tìm đáy. Đặc trưng có thể phức tạp tùy ý mà việc học vẫn dễ.</p>
+</div>
+
+<p>Ý tưởng này áp dụng được cho nhiều loại quy luật. Dữ liệu tuần hoàn thì thêm \(\cos(x)\), \(\sin(x)\). Dữ liệu thay đổi theo từng khoảng thì thêm các đặc trưng chỉ báo như \(\mathbf 1[0 < x \le 1]\), \(\mathbf 1[1 < x \le 2]\). Mô hình khi đó có thể học một giá trị riêng cho mỗi khoảng.</p>
+
+<h3>Với phân loại: biên quyết định cong</h3>
+<p>Giả sử các điểm \(+1\) nằm trong một hình tròn bán kính 1 và các điểm \(-1\) nằm ngoài. Không đường thẳng nào tách được trong với ngoài. Nhưng nếu dùng \(\phi(x) = [1,\ x_1,\ x_2,\ x_1^2 + x_2^2]\) với \(w = [1, 0, 0, -1]\), điểm số là \(1 - (x_1^2 + x_2^2)\). Nó dương khi và chỉ khi điểm nằm trong hình tròn. Biên quyết định \(w\cdot\phi(x) = 0\) chính là đường tròn \(x_1^2 + x_2^2 = 1\). Nó “thẳng” trong không gian đặc trưng, nhưng cong khi nhìn trong không gian gốc.</p>
+
+<h2 id="feature-templates"><span class="sec">3</span>Mẫu đặc trưng (feature templates)</h2>
+<p>Khi đầu vào là văn bản, địa chỉ email hay URL, có hàng nghìn đặc trưng tiềm năng. Viết tay từng cái là không khả thi. <dfn>Mẫu đặc trưng</dfn> (<span class="en">feature template</span>) là một “khuôn” có chỗ trống. Mỗi cách điền chỗ trống sinh ra một đặc trưng.</p>
+<div class="box example"><div class="box-h">Ví dụ · Đoán một chuỗi có phải email hợp lệ</div>
+<p>Đầu vào \(x = \texttt{abc@gmail.com}\). Một số mẫu và các đặc trưng chúng sinh ra:</p>
+<div class="tbl-wrap" style="margin:.6rem 0"><table class="tbl">
+<tr><th>Mẫu (template)</th><th>Đặc trưng bật lên với \(x\)</th><th>Số đặc trưng có thể sinh ra</th></tr>
+<tr><td>Ba ký tự cuối là ___</td><td><code>endsWith_com = 1</code></td><td>\(\approx 26^3\) (mọi bộ ba chữ)</td></tr>
+<tr><td>Chứa ký tự ___</td><td><code>contains_@ = 1</code>, <code>contains_. = 1</code>, …</td><td>số ký tự có thể có</td></tr>
+<tr><td>Độ dài lớn hơn ___</td><td><code>length&gt;10 = 1</code></td><td>vài chục</td></tr>
+</table></div>
+<p>Phần lớn đặc trưng bằng 0 với một \(x\) cụ thể: chỉ <code>endsWith_com</code> bật, còn <code>endsWith_org</code>, <code>endsWith_net</code>… đều tắt. Vì thế người ta lưu \(\phi(x)\) dưới dạng <em>từ điển</em> chỉ chứa các đặc trưng khác 0 (biểu diễn thưa, <span class="en">sparse</span>), thay vì một mảng dài toàn số 0.</p>
+</div>
+<p>Template giúp ta suy nghĩ ở mức “loại thông tin nào có ích”, còn việc quyết định đặc trưng cụ thể nào quan trọng thì để thuật toán học qua trọng số \(w\). Dù vậy, ta vẫn phải tự nghĩ ra template. Liệu máy có thể tự học luôn đặc trưng không? Đó là động lực của mạng nơ-ron.</p>
+
+<h2 id="neural-net"><span class="sec">4</span>Mạng nơ-ron: để máy tự học đặc trưng</h2>
+
+<div class="box problem"><div class="box-h">Bài toán (ví dụ của CS221)</div>
+<p>Hai xe trên một con đường thẳng, ở vị trí \(x_1\) và \(x_2\). Ta cần dự đoán tình huống có <b>an toàn</b> không, nghĩa là hai xe cách nhau ít nhất 1: \(|x_1 - x_2| \ge 1\). Với \(\phi(x) = [1, x_1, x_2]\), không bộ phân loại tuyến tính nào làm được. Vùng an toàn gồm <em>hai</em> dải nằm hai bên đường chéo, trong khi một đường thẳng chỉ chia mặt phẳng làm hai nửa.</p>
+</div>
+
+<p><strong>Ý tưởng cốt lõi:</strong> chia bài toán khó thành các bài toán con dễ. “An toàn” xảy ra khi <em>hoặc</em> xe 1 ở phía trước đủ xa, <em>hoặc</em> xe 2 ở phía trước đủ xa. Mỗi điều kiện con là một phép so sánh tuyến tính:</p>
+\[h_1 = \mathbf 1[x_1 - x_2 \ge 1], \qquad h_2 = \mathbf 1[x_2 - x_1 \ge 1], \qquad \text{an toàn} \iff h_1 + h_2 > 0.\]
+<p>Ở đây \(h_1, h_2\) là những đặc trưng <em>trung gian</em>. Mỗi cái do một bộ phân loại tuyến tính nhỏ tạo ra, và kết quả cuối lại là một tổ hợp tuyến tính của chúng. Nếu cho máy tự học các bộ phân loại nhỏ đó, ta có <dfn>mạng nơ-ron</dfn> (<span class="en">neural network</span>).</p>
+
+<h3>Hàm kích hoạt: làm trơn bậc thang</h3>
+<p>Hàm \(\mathbf 1[\cdot]\) lại là hàm bậc thang, nên không có gradient, giống hệt vấn đề của zero-one loss. Vì vậy ta thay nó bằng một <dfn>hàm kích hoạt</dfn> (<span class="en">activation function</span>) có dốc:</p>
+<ul>
+<li><b>Logistic (sigmoid)</b>: \(\sigma(z) = \dfrac{1}{1 + e^{-z}}\), một chữ S mượt đi từ 0 lên 1. Đạo hàm của nó là \(\sigma(z)(1-\sigma(z))\).</li>
+<li><b>ReLU</b>: \(\text{ReLU}(z) = \max(0, z)\). Âm thì trả về 0, dương thì giữ nguyên. Đạo hàm bằng 1 khi \(z > 0\) và bằng 0 khi \(z < 0\). Rất rẻ để tính nên được dùng phổ biến.</li>
+</ul>
+
+<p>Một mạng hai lớp viết như sau. Mỗi <em>nơ-ron ẩn</em> \(j\) có vector trọng số riêng \(v_j\):</p>
+\[h_j = \sigma(v_j\cdot\phi(x)) \quad (j = 1,\dots,k), \qquad f(x) = w\cdot h = w_1h_1 + \dots + w_kh_k.\]
+
+<figure class="fig">
+<svg viewBox="0 0 600 250" role="img" aria-label="Mạng nơ-ron hai lớp">
+  <g class="ln">
+    <line x1="110" y1="60" x2="290" y2="80"/><line x1="110" y1="60" x2="290" y2="170"/>
+    <line x1="110" y1="125" x2="290" y2="80"/><line x1="110" y1="125" x2="290" y2="170"/>
+    <line x1="110" y1="190" x2="290" y2="80"/><line x1="110" y1="190" x2="290" y2="170"/>
+  </g>
+  <line x1="310" y1="80" x2="470" y2="125" class="ln-acc" style="stroke-width:2"/><line x1="310" y1="170" x2="470" y2="125" class="ln-acc" style="stroke-width:2"/>
+  <circle cx="90" cy="60" r="20" class="nd-soft"/><text x="90" y="65" text-anchor="middle">1</text>
+  <circle cx="90" cy="125" r="20" class="nd-soft"/><text x="90" y="130" text-anchor="middle">x₁</text>
+  <circle cx="90" cy="190" r="20" class="nd-soft"/><text x="90" y="195" text-anchor="middle">x₂</text>
+  <circle cx="300" cy="80" r="22" class="nd-violet"/><text x="300" y="85" text-anchor="middle" class="t-b">h₁</text>
+  <circle cx="300" cy="170" r="22" class="nd-violet"/><text x="300" y="175" text-anchor="middle" class="t-b">h₂</text>
+  <circle cx="490" cy="125" r="24" class="nd-acc"/><text x="490" y="130" text-anchor="middle" class="t-b">f(x)</text>
+  <text x="90" y="232" text-anchor="middle" class="t-small t-muted">đặc trưng φ(x)</text>
+  <text x="300" y="232" text-anchor="middle" class="t-small t-muted">lớp ẩn: h = σ(V φ(x))</text>
+  <text x="490" y="232" text-anchor="middle" class="t-small t-muted">đầu ra: w · h</text>
+  <text x="200" y="30" text-anchor="middle" class="t-small" style="fill:var(--violet)">trọng số V (học được)</text>
+  <text x="395" y="70" text-anchor="middle" class="t-small t-acc">trọng số w</text>
+</svg>
+<figcaption><b>Mạng nơ-ron hai lớp cho bài toán hai xe.</b> Mỗi đường nối mang một trọng số. Nơ-ron ẩn \(h_1\) có thể học được “\(x_1 - x_2 \ge 1\)?”, còn \(h_2\) học được “\(x_2 - x_1 \ge 1\)?”. Lớp đầu ra cộng hai câu trả lời. Ta không viết tay \(h_1, h_2\): cả \(V\) lẫn \(w\) đều được học bằng gradient descent.</figcaption>
+</figure>
+
+<div class="box math"><div class="box-h">Toán nền · Nhân ma trận với vector</div>
+<p>Gom các \(v_j\) thành các hàng của một <dfn>ma trận</dfn> \(V\) (bảng số có \(k\) hàng). Khi đó \(V\phi(x)\) là vector gồm \(k\) tích vô hướng \([v_1\cdot\phi(x), \dots, v_k\cdot\phi(x)]\). Áp \(\sigma\) lên từng phần tử là ra \(h\). Đây là lý do mạng nơ-ron hay được viết gọn là \(f(x) = w\cdot\sigma(V\phi(x))\).</p>
+</div>
+
+<div class="box example"><div class="box-h">Ví dụ · Mạng ReLU giải bài hai xe</div>
+<p>Chọn \(v_1 = [-1, 1, -1]\) và \(v_2 = [-1, -1, 1]\), tức là \(v_1\cdot\phi(x) = x_1 - x_2 - 1\) và \(v_2\cdot\phi(x) = x_2 - x_1 - 1\). Chọn \(w = [1, 1]\), dùng ReLU, và dự đoán “an toàn” khi \(f(x) > 0\).</p>
+<ul>
+<li>\(x = (3, 1)\): \(h_1 = \max(0, 1) = 1\), \(h_2 = \max(0, -3) = 0\), \(f = 1 > 0\) ⇒ an toàn (đúng, cách nhau 2).</li>
+<li>\(x = (2, 1.5)\): \(h_1 = \max(0, -0.5) = 0\), \(h_2 = \max(0, -1.5) = 0\), \(f = 0\) ⇒ không an toàn (đúng, chỉ cách 0.5).</li>
+</ul>
+<p>Mỗi nơ-ron ẩn “phát hiện” một kiểu an toàn, còn lớp cuối gộp lại. Mạng thật sẽ <em>tự tìm ra</em> những trọng số tương tự từ dữ liệu.</p>
+</div>
+
+<p>Xếp nhiều lớp chồng lên nhau, ta có <dfn>mạng sâu</dfn> (<span class="en">deep network</span>): \(f(x) = w\cdot\sigma(V_3\,\sigma(V_2\,\sigma(V_1\phi(x))))\). Các lớp đầu học đặc trưng đơn giản (cạnh, góc trong ảnh). Các lớp sau ghép chúng thành đặc trưng trừu tượng hơn (mắt, mặt người).</p>
+
+<div class="compare">
+<div><h4>Đặc trưng thủ công</h4><p>Con người chọn \(\phi(x)\) (thêm \(x^2\), template…). Mô hình vẫn tuyến tính theo \(w\), nên loss dễ tối ưu và kết quả dễ giải thích. Đổi lại, nó chỉ mạnh khi người thiết kế đoán đúng loại đặc trưng.</p></div>
+<div><h4>Mạng nơ-ron</h4><p>Máy tự học đặc trưng trung gian \(h\). Mô hình biểu diễn được quy luật phức tạp hơn nhiều. Đổi lại, loss không còn dạng “cái bát” (có thể có nhiều đáy), cần nhiều dữ liệu hơn, và phải có cách tính gradient hiệu quả.</p></div>
+</div>
+
+<h2 id="backprop"><span class="sec">5</span>Lan truyền ngược (backpropagation)</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Muốn chạy gradient descent cho mạng nơ-ron, ta cần đạo hàm của loss theo <em>từng</em> trọng số: mọi phần tử trong \(V_1, V_2, \dots, w\). Mạng thật có hàng triệu trọng số. Viết tay công thức đạo hàm cho từng cái là bất khả thi và rất dễ sai. Cần một quy trình tự động.</p>
+</div>
+
+<p><strong>Ý tưởng:</strong> mọi hàm phức tạp đều được ghép từ những phép tính rất đơn giản (cộng, nhân, max, bình phương…). Mỗi phép đơn giản thì ta biết đạo hàm cục bộ của nó. Chỉ cần một quy tắc để “nối” các đạo hàm cục bộ lại, và quy tắc đó là quy tắc dây chuyền.</p>
+
+<div class="box math"><div class="box-h">Toán nền · Quy tắc dây chuyền (chain rule)</div>
+<p>Nếu \(L\) phụ thuộc vào \(u\), và \(u\) phụ thuộc vào \(w\), thì \(\dfrac{\partial L}{\partial w} = \dfrac{\partial L}{\partial u}\cdot\dfrac{\partial u}{\partial w}\). Trực giác: nếu \(u\) tăng 3 lần nhanh hơn \(w\), và \(L\) tăng 2 lần nhanh hơn \(u\), thì \(L\) tăng \(2\times 3 = 6\) lần nhanh hơn \(w\). Ký hiệu \(\partial\) (“đạo hàm riêng”) chỉ là đạo hàm theo một biến khi giữ các biến khác cố định.</p>
+</div>
+
+<p>Ta vẽ phép tính thành một <dfn>đồ thị tính toán</dfn> (<span class="en">computation graph</span>): mỗi nút là một phép tính đơn giản, mỗi cạnh mang một giá trị trung gian. Thuật toán gồm hai lượt:</p>
+<ol>
+<li><b>Lượt xuôi</b> (<span class="en">forward</span>): đi từ đầu vào tới loss, tính và lưu giá trị ở mọi nút.</li>
+<li><b>Lượt ngược</b> (<span class="en">backward</span>): đi từ loss về đầu vào. Bắt đầu với \(\partial L/\partial L = 1\). Tại mỗi nút, nhân gradient nhận được từ phía sau với đạo hàm cục bộ của nút rồi chuyển tiếp về phía trước. Nếu một giá trị được dùng ở nhiều nơi, cộng các gradient đổ về nó lại.</li>
+</ol>
+
+<div class="box example"><div class="box-h">Ví dụ · Mạng một nơ-ron ẩn, tính tay toàn bộ</div>
+<p>Mô hình \(f = w\cdot\text{ReLU}(v\,x)\), loss \(L = (f - y)^2\). Dữ liệu: \(x = 2\), \(y = 3\). Tham số hiện tại: \(v = 1.5\), \(w = 0.5\).</p>
+</div>
+
+<figure class="fig wide">
+<svg viewBox="0 0 760 250" role="img" aria-label="Đồ thị tính toán với lượt xuôi và lượt ngược">
+  <defs><marker id="m2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" class="arrow-head"/></marker></defs>
+  <g class="ln-ink" marker-end="url(#m2a)">
+    <line x1="62" y1="62" x2="144" y2="100"/><line x1="62" y1="160" x2="144" y2="122"/>
+    <line x1="186" y1="110" x2="262" y2="110"/>
+    <line x1="318" y1="110" x2="404" y2="132"/><line x1="320" y1="210" x2="404" y2="150"/>
+    <line x1="446" y1="140" x2="522" y2="140"/><line x1="480" y1="218" x2="524" y2="158"/>
+    <line x1="566" y1="140" x2="632" y2="140"/><line x1="674" y1="140" x2="722" y2="140"/>
+  </g>
+  <circle cx="45" cy="55" r="18" class="nd-violet"/><text x="45" y="60" text-anchor="middle" class="t-b">v</text>
+  <circle cx="45" cy="165" r="18" class="nd-soft"/><text x="45" y="170" text-anchor="middle">x</text>
+  <circle cx="165" cy="110" r="21" class="nd"/><text x="165" y="115" text-anchor="middle" class="t-b">×</text>
+  <rect x="264" y="92" width="56" height="36" rx="9" class="nd"/><text x="292" y="115" text-anchor="middle" class="t-small t-b">ReLU</text>
+  <circle cx="300" cy="215" r="18" class="nd-violet"/><text x="300" y="220" text-anchor="middle" class="t-b">w</text>
+  <circle cx="425" cy="140" r="21" class="nd"/><text x="425" y="145" text-anchor="middle" class="t-b">×</text>
+  <circle cx="465" cy="225" r="16" class="nd-soft"/><text x="465" y="230" text-anchor="middle">y</text>
+  <circle cx="545" cy="140" r="21" class="nd"/><text x="545" y="145" text-anchor="middle" class="t-b">−</text>
+  <circle cx="653" cy="140" r="21" class="nd"/><text x="653" y="145" text-anchor="middle" class="t-b">( )²</text>
+  <text x="742" y="145" class="t-b">L</text>
+  <g class="t-small t-b t-ok">
+    <text x="92" y="66">v=1.5</text><text x="92" y="168">x=2</text><text x="224" y="100" text-anchor="middle">z=3</text><text x="362" y="108" text-anchor="middle">h=3</text><text x="356" y="206">w=0.5</text><text x="484" y="130" text-anchor="middle">f=1.5</text><text x="500" y="226">y=3</text><text x="599" y="130" text-anchor="middle">r=−1.5</text><text x="700" y="130" text-anchor="middle">2.25</text>
+  </g>
+  <g class="t-small t-b t-min">
+    <text x="72" y="40">∂L/∂v=−3</text><text x="224" y="130" text-anchor="middle">−1.5</text><text x="362" y="136" text-anchor="middle">−1.5</text><text x="276" y="222" text-anchor="end">∂L/∂w=−9</text><text x="484" y="160" text-anchor="middle">−3</text><text x="599" y="160" text-anchor="middle">−3</text><text x="700" y="160" text-anchor="middle">1</text>
+  </g>
+  <text x="20" y="245" class="t-small t-ok t-b">xanh: giá trị (lượt xuôi →)</text><text x="230" y="245" class="t-small t-min t-b">đỏ: gradient ∂L/∂(·) (lượt ngược ←)</text>
+</svg>
+<figcaption><b>Đọc hình từ trái sang phải để tính giá trị, rồi từ phải sang trái để tính gradient.</b> Mỗi nút chỉ cần biết đạo hàm cục bộ của chính nó. Gradient ở một cạnh bằng gradient cạnh phía sau nhân với đạo hàm cục bộ của nút ở giữa.</figcaption>
+</figure>
+
+<p>Hãy đi lại từng bước của lượt ngược để thấy mỗi con số đỏ đến từ đâu:</p>
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Nút</th><th>Đạo hàm cục bộ</th><th>Gradient truyền về</th></tr>
+<tr><td>\(L = r^2\)</td><td>\(\partial L/\partial r = 2r = -3\)</td><td>\(\partial L/\partial r = -3\)</td></tr>
+<tr><td>\(r = f - y\)</td><td>\(\partial r/\partial f = 1\)</td><td>\(\partial L/\partial f = -3\times 1 = -3\)</td></tr>
+<tr><td>\(f = w\cdot h\)</td><td>\(\partial f/\partial w = h = 3\); \(\partial f/\partial h = w = 0.5\)</td><td>\(\partial L/\partial w = -3\times3 = \mathbf{-9}\); \(\partial L/\partial h = -3\times0.5 = -1.5\)</td></tr>
+<tr><td>\(h = \text{ReLU}(z)\)</td><td>\(z = 3 > 0\) nên đạo hàm \(= 1\)</td><td>\(\partial L/\partial z = -1.5\)</td></tr>
+<tr><td>\(z = v\cdot x\)</td><td>\(\partial z/\partial v = x = 2\)</td><td>\(\partial L/\partial v = -1.5\times 2 = \mathbf{-3}\)</td></tr>
+</table></div>
+<p>Cả hai gradient đều âm, tức là tăng \(v\) hoặc \(w\) sẽ giảm loss. Điều này hợp lý vì dự đoán \(1.5\) đang thấp hơn đáp án \(3\). Một bước gradient descent với \(\eta = 0.05\) cho \(w \leftarrow 0.5 + 0.45 = 0.95\), \(v \leftarrow 1.5 + 0.15 = 1.65\). Dự đoán mới là \(0.95 \times \text{ReLU}(3.3) \approx 3.14\), rất gần 3.</p>
+
+<p>Vài “khối lắp ghép” thường gặp và cách chúng truyền gradient:</p>
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Phép tính</th><th>Gradient chuyển về mỗi đầu vào</th><th>Trực giác</th></tr>
+<tr><td>\(a + b\)</td><td>cả \(a\) và \(b\) nhận nguyên gradient</td><td>phép cộng “phân phát” gradient</td></tr>
+<tr><td>\(a \cdot b\)</td><td>\(a\) nhận gradient × \(b\); \(b\) nhận gradient × \(a\)</td><td>phép nhân “hoán đổi” hai đầu vào</td></tr>
+<tr><td>\(\max(a, b)\)</td><td>chỉ đầu vào lớn hơn nhận gradient</td><td>phép max là “công tắc”</td></tr>
+<tr><td>\(\sigma(a)\)</td><td>gradient × \(\sigma(a)(1-\sigma(a))\)</td><td>gần 0 hoặc 1 thì gradient gần như tắt</td></tr>
+</table></div>
+
+<div class="box idea"><div class="box-h">Vì sao backprop quan trọng?</div>
+<p>Lượt ngược chỉ tốn khoảng bằng lượt xuôi, và nó cho ra gradient theo <em>mọi</em> tham số cùng lúc. Nếu tính riêng từng đạo hàm, chi phí sẽ phải nhân lên theo số tham số. Nhờ vậy, việc huấn luyện mạng có hàng tỉ tham số mới khả thi. Các thư viện như PyTorch tự dựng đồ thị tính toán và chạy backprop cho bạn. Đây chính là ý tưởng “lập trình khả vi” (<span class="en">differentiable programming</span>) ở bài sau.</p>
+</div>
+
+<div class="box recap"><div class="box-h">Ghi nhớ</div>
+<p><b>Group DRO</b> thay loss trung bình bằng loss của nhóm tệ nhất, tức là đổi câu hỏi ②. <b>Đặc trưng phi tuyến</b> và <b>mạng nơ-ron</b> làm lớp giả thuyết giàu hơn, tức là đổi câu hỏi ①. Đặc trưng phi tuyến do người chọn và vẫn tuyến tính theo \(w\). Mạng nơ-ron tự học đặc trưng qua các lớp \(\sigma(V\phi(x))\). <b>Backpropagation</b> là cách tính gradient hiệu quả, phục vụ câu hỏi ③: lượt xuôi tính giá trị, lượt ngược nhân các đạo hàm cục bộ theo quy tắc dây chuyền.</p>
+</div>
+
+<div class="box link"><div class="box-h">Bài tiếp theo</div>
+<p>Mô hình càng mạnh thì càng dễ “học thuộc” tập huấn luyện mà dự đoán dở trên dữ liệu mới. Bài 1.3 trả lời câu hỏi quan trọng nhất của học máy: làm sao biết mô hình thật sự tốt, và làm sao để nó tổng quát hóa tốt? Bài cũng giới thiệu k-means, một bài toán học <em>không có đáp án</em>.</p>
+</div>
+
+<details class="quiz"><summary>Tự kiểm tra: mạng nơ-ron không có hàm kích hoạt (bỏ σ) thì sao?</summary><div class="ans"><p>Khi đó \(f(x) = w\cdot(V\phi(x)) = (V^\top w)\cdot\phi(x)\). Đây vẫn chỉ là <em>một</em> vector trọng số nhân với \(\phi(x)\), tức là quay về mô hình tuyến tính. Xếp bao nhiêu lớp tuyến tính chồng lên nhau cũng vẫn là tuyến tính. Chính hàm kích hoạt phi tuyến mới làm mạng mạnh hơn.</p></div></details>
+<details class="quiz"><summary>Tự kiểm tra: trong ví dụ backprop, nếu v = −1 thì ∂L/∂v bằng bao nhiêu?</summary><div class="ans"><p>Khi đó \(z = vx = -2 < 0\), nên ReLU trả về 0 và đạo hàm cục bộ của ReLU bằng 0. Gradient bị “chặn” tại ReLU: \(\partial L/\partial v = 0\). Nơ-ron này không học được gì từ ví dụ này. Đây là hiện tượng “nơ-ron chết” của ReLU.</p></div></details>
+
+<p class="src">Nguồn: Stanford CS221 Spring 2025 — <a href="https://stanford-cs221.github.io/spring2025/modules/">Machine Learning 2</a> (group DRO, non-linear features, feature templates, neural networks, backpropagation); slide buổi 2 của lớp.</p>
+
+</article></main></div>
+</body></html>

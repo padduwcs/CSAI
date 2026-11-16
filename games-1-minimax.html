@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4.1 Mô hình trò chơi, expectimax, minimax · CSAI</title>
+<meta name="description" content="Bài 4.1: mô hình trò chơi đối kháng hai người, game evaluation, expectimax, minimax và các tính chất của minimax.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/katex/katex.min.css"><link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/vendor/katex/katex.min.js"></script><script defer src="assets/vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="assets/site.js"></script><script defer src="assets/sim.js"></script>
+</head>
+<body data-page="games-1">
+<div class="layout"><aside class="sidebar" id="sidebar"></aside>
+<main class="page" id="main"><article class="content">
+
+<header class="hero">
+  <div class="eyebrow">Chương 4 · Trò chơi · Bài 1</div>
+  <h1>Mô hình trò chơi, expectimax và minimax</h1>
+  <p class="lead">Ở MDP, kết quả ngẫu nhiên đến từ “tự nhiên”, một thứ không có ý đồ. Trong cờ vua, cờ caro hay bất kỳ cuộc đối đầu nào, bên kia là một <em>đối thủ</em> chủ động chọn nước đi gây bất lợi cho ta. Bài này mô hình hóa trò chơi và xây dựng hai cách ra quyết định, tùy theo ta giả định đối thủ hành xử thế nào.</p>
+  <div class="meta">
+    <div><h4>Bạn sẽ hiểu</h4><ul><li>Các thành phần của một trò chơi hai người</li><li>Game evaluation: chấm điểm hai chính sách</li><li>Expectimax và minimax khác nhau ở giả định gì</li><li>Minimax đảm bảo được gì, không đảm bảo được gì</li></ul></div>
+    <div><h4>Cần biết trước</h4><p style="margin:0">Chương 3: chính sách, kỳ vọng, truy hồi giá trị \(V\).</p></div>
+  </div>
+</header>
+
+<h2 id="overview"><span class="sec">1</span>Trò chơi mở đầu: ba cái thùng</h2>
+
+<div class="box problem"><div class="box-h">Trò chơi</div>
+<p>Có ba thùng, mỗi thùng chứa hai con số: <b>A = {−50, 50}</b>, <b>B = {1, 3}</b>, <b>C = {−5, 15}</b>. Bạn chọn một thùng. Sau đó <em>đối thủ</em> chọn một số trong thùng đó, và bạn nhận đúng số tiền ấy. Bạn muốn số càng lớn càng tốt. Nên chọn thùng nào?</p>
+</div>
+
+<p>Câu trả lời phụ thuộc hoàn toàn vào việc <strong>ta tin đối thủ chọn thế nào</strong>:</p>
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Giả định về đối thủ</th><th>A</th><th>B</th><th>C</th><th>Nên chọn</th></tr>
+<tr><td>Chọn ngẫu nhiên (mỗi số 50%)</td><td class="n">\(\frac{-50+50}{2} = 0\)</td><td class="n">\(2\)</td><td class="n">\(5\)</td><td><b>C</b> (kỳ vọng 5)</td></tr>
+<tr><td>Luôn chọn số nhỏ nhất (đối đầu)</td><td class="n">\(-50\)</td><td class="n">\(1\)</td><td class="n">\(-5\)</td><td><b>B</b> (chắc chắn ≥ 1)</td></tr>
+<tr><td>Luôn chọn số lớn nhất (hợp tác)</td><td class="n">\(50\)</td><td class="n">\(3\)</td><td class="n">\(15\)</td><td><b>A</b></td></tr>
+</table></div>
+<p>Luật chơi giữ nguyên, nhưng ba giả định cho ba đáp án khác nhau. Toàn bộ chương này xoay quanh câu hỏi: <em>mô hình hóa đối thủ thế nào, và khi đó tính giá trị ra sao</em>.</p>
+
+<h2 id="modeling"><span class="sec">2</span>Mô hình hóa trò chơi</h2>
+<p>Ta xét loại trò chơi đơn giản nhất: <b>hai người</b>, <b>đi lần lượt</b>, <b>thông tin đầy đủ</b> (ai cũng thấy hết trạng thái), và <b>tổng bằng 0</b> (<span class="en">zero-sum</span>: bên này được bao nhiêu thì bên kia mất bấy nhiêu). Ta gọi mình là <b>agent</b> (người chơi MAX) và đối thủ là <b>opp</b> (người chơi MIN). Một trò chơi gồm:</p>
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Thành phần</th><th>Ý nghĩa</th><th>So với tìm kiếm / MDP</th></tr>
+<tr><td>\(s_{\text{start}}\), \(\text{Actions}(s)\), \(\text{Succ}(s,a)\), \(\text{IsEnd}(s)\)</td><td>như tìm kiếm</td><td>giống</td></tr>
+<tr><td>\(\text{Utility}(s)\)</td><td>điểm của agent ở trạng thái kết thúc</td><td>thay cho phần thưởng từng bước: chỉ chấm điểm khi ván kết thúc</td></tr>
+<tr><td>\(\text{Player}(s)\)</td><td>ai được đi ở trạng thái \(s\)</td><td><b>mới</b></td></tr>
+</table></div>
+<p>Vì tổng bằng 0, utility của đối thủ là \(-\text{Utility}(s)\). Ta chỉ cần ghi một con số theo góc nhìn của agent. Agent muốn nó lớn, đối thủ muốn nó nhỏ. Chính sách của người chơi \(p\) có thể tất định, \(\pi_p(s) \in \text{Actions}(s)\), hoặc ngẫu nhiên, \(\pi_p(a\mid s)\) là xác suất chọn \(a\) ở \(s\).</p>
+
+<p>Các diễn biến có thể xảy ra được vẽ thành <dfn>cây trò chơi</dfn> (<span class="en">game tree</span>). Mỗi tầng xen kẽ lượt hai bên. Quy ước ký hiệu dùng xuyên suốt chương:</p>
+
+<figure class="fig">
+<svg viewBox="0 0 560 120" role="img" aria-label="Quy ước ký hiệu nút trong cây trò chơi">
+  <polygon points="60,30 37,66 83,66" class="nd-max"/><text x="60" y="95" text-anchor="middle" class="t-small t-b">MAX (agent)</text><text x="60" y="112" text-anchor="middle" class="t-small t-muted">chọn con lớn nhất</text>
+  <polygon points="177,34 223,34 200,70" class="nd-min"/><text x="200" y="95" text-anchor="middle" class="t-small t-b">MIN (đối thủ)</text><text x="200" y="112" text-anchor="middle" class="t-small t-muted">chọn con nhỏ nhất</text>
+  <circle cx="340" cy="52" r="19" class="nd-ch"/><text x="340" y="95" text-anchor="middle" class="t-small t-b">Nút ngẫu nhiên</text><text x="340" y="112" text-anchor="middle" class="t-small t-muted">lấy trung bình theo xác suất</text>
+  <rect x="461" y="38" width="38" height="28" rx="6" class="nd"/><text x="480" y="57" text-anchor="middle" class="t-b">5</text><text x="480" y="95" text-anchor="middle" class="t-small t-b">Lá (kết thúc)</text><text x="480" y="112" text-anchor="middle" class="t-small t-muted">Utility đã biết</text>
+</svg>
+<figcaption><b>Bốn loại nút.</b> Tam giác hướng lên là lượt agent, tam giác hướng xuống là lượt đối thủ, hình tròn là may rủi (tung đồng xu, xúc xắc), ô vuông là trạng thái kết thúc kèm utility.</figcaption>
+</figure>
+
+<div class="box example"><div class="box-h">Ví dụ · Trò chơi chia đôi (halving game, CS221)</div>
+<p>Bắt đầu với số \(N\). Hai người lần lượt chọn: <b>trừ 1</b> (\(N \to N-1\)) hoặc <b>chia đôi</b> (\(N \to \lfloor N/2 \rfloor\), làm tròn xuống). Ai đến lượt mà số đã là 0 thì <b>thắng</b>. Mô hình hóa: trạng thái là \((\text{người đến lượt}, N)\); \(\text{IsEnd}\) khi \(N = 0\); Utility \(= +1\) nếu agent đến lượt khi \(N=0\), ngược lại \(-1\).</p>
+</div>
+
+<div class="box pitfall"><div class="box-h">Dễ nhầm · Cây trò chơi và đồ thị trạng thái</div>
+<p>Trong cờ caro 3×3 (Tic-Tac-Toe), cây trò chơi có khoảng 550 nghìn nút. Nhưng chỉ có 5.478 thế cờ khác nhau, vì nhiều thứ tự đi khác nhau dẫn tới cùng một bàn cờ. Giống như ở chương 2, “cây” liệt kê từng lịch sử, còn “đồ thị trạng thái” gộp chúng lại. Lưu ý: trạng thái phải ghi cả <em>ai đến lượt</em>, vì cùng một bàn cờ nhưng khác người đi có thể có giá trị khác nhau.</p>
+</div>
+
+<h2 id="game-eval"><span class="sec">3</span>Game evaluation: chấm điểm khi biết cả hai chính sách</h2>
+<p>Bắt đầu từ trường hợp dễ nhất: <b>biết hết</b> cách chơi của cả hai bên. Khi đó không ai “quyết định” gì nữa, cây trò chơi chỉ còn là một quá trình ngẫu nhiên. Giá trị kỳ vọng tính từ lá lên, giống hệt đánh giá chính sách ở chương 3:</p>
+\[V_{\text{eval}}(s) = \begin{cases} \text{Utility}(s) & \text{IsEnd}(s) \\ \sum_a \pi_{\text{agent}}(a\mid s)\, V_{\text{eval}}(\text{Succ}(s,a)) & \text{Player}(s) = \text{agent} \\ \sum_a \pi_{\text{opp}}(a\mid s)\, V_{\text{eval}}(\text{Succ}(s,a)) & \text{Player}(s) = \text{opp.} \end{cases}\]
+<div class="box example"><div class="box-h">Ví dụ</div>
+<p>Agent luôn chọn A. Đối thủ chọn ngẫu nhiên đều. \(V_{\text{eval}} = 1\cdot\big(\tfrac12(-50) + \tfrac12(50)\big) = 0\). Không ai tối ưu gì cả: đây chỉ là chấm điểm một cặp chính sách cho trước.</p>
+</div>
+
+<h2 id="expectimax"><span class="sec">4</span>Expectimax: tối ưu khi biết đối thủ chơi thế nào</h2>
+<p>Giờ agent được <em>tự chọn</em>, còn đối thủ vẫn theo một chính sách ngẫu nhiên đã biết \(\pi_{\text{opp}}\). Giống bước từ đánh giá chính sách sang value iteration, ta thay tổng theo \(\pi_{\text{agent}}\) bằng \(\max\):</p>
+\[V_{\text{exptmax}}(s) = \begin{cases} \text{Utility}(s) & \text{IsEnd}(s) \\ \max\limits_{a} V_{\text{exptmax}}(\text{Succ}(s,a)) & \text{Player}(s) = \text{agent} \\ \sum_a \pi_{\text{opp}}(a\mid s)\, V_{\text{exptmax}}(\text{Succ}(s,a)) & \text{Player}(s) = \text{opp.} \end{cases}\]
+<p>Thực chất đây là một MDP, trong đó đối thủ đóng vai “tự nhiên”. Với đối thủ chọn đều, các thùng có giá trị 0, 2, 5. Agent chọn C, giá trị 5.</p>
+
+<h2 id="minimax"><span class="sec">5</span>Minimax: chuẩn bị cho tình huống xấu nhất</h2>
+
+<div class="box problem"><div class="box-h">Vấn đề của expectimax</div>
+<p>Expectimax cần biết \(\pi_{\text{opp}}\). Ngoài đời, ta hiếm khi biết đối thủ sẽ chơi thế nào. Một đối thủ thông minh còn <em>cố tình</em> chọn nước gây hại nhất cho ta. Nếu ta tin đối thủ chọn ngẫu nhiên và chọn C, nhưng đối thủ thật lại chọn −5, ta sẽ thua.</p>
+</div>
+
+<p><strong>Ý tưởng:</strong> giả định đối thủ <em>luôn</em> chọn nước tệ nhất cho ta. Ở lượt đối thủ, thay kỳ vọng bằng \(\min\):</p>
+\[V_{\text{minmax}}(s) = \begin{cases} \text{Utility}(s) & \text{IsEnd}(s) \\ \max\limits_{a} V_{\text{minmax}}(\text{Succ}(s,a)) & \text{Player}(s) = \text{agent} \\ \min\limits_{a} V_{\text{minmax}}(\text{Succ}(s,a)) & \text{Player}(s) = \text{opp.} \end{cases}\]
+<p>Chính sách minimax của mỗi bên là hành động đạt max (agent) hoặc min (đối thủ) tương ứng. Hãy chạy cả hai cách trên trò ba thùng. Bấm Minimax/Expectimax để đổi giả định về đối thủ:</p>
+
+<div class="sim" data-sim="game"><script type="application/json">{"title":"Ba thùng: minimax và expectimax","sub":"Tính giá trị từ lá lên; đường xanh là nước đi được chọn","modes":["minimax","expectimax"],"dx":64,"tree":{"t":"max","c":[{"t":"opp","n":"A","c":[{"v":-50},{"v":50}]},{"t":"opp","n":"B","c":[{"v":1},{"v":3}]},{"t":"opp","n":"C","c":[{"v":-5},{"v":15}]}]}}</script></div>
+
+<p>Với minimax: các thùng có giá trị \(\min(-50, 50) = -50\), \(\min(1,3) = 1\), \(\min(-5, 15) = -5\). Gốc lấy \(\max = 1\), nên agent chọn <b>B</b>. Với expectimax (đối thủ đều 0.5/0.5): 0, 2, 5, nên agent chọn <b>C</b>. Cùng một cây, khác giả định ở nút đối thủ, cho ra quyết định khác nhau.</p>
+
+<h3>Một ví dụ nhiều tầng: trò chia đôi với N = 3</h3>
+<p>Ở trò ba thùng, mỗi bên chỉ đi một lần. Trò chia đôi cho thấy minimax trên cây nhiều tầng, với lượt hai bên xen kẽ. Lá ghi +1 nếu agent thắng, −1 nếu thua:</p>
+
+<div class="sim" data-sim="game"><script type="application/json">{"title":"Trò chia đôi, N = 3, agent đi trước","sub":"Hành động: “−” (trừ 1) hoặc “/” (chia đôi); ai đến lượt khi số là 0 thì thắng","modes":["minimax"],"dx":66,"tree":{"t":"max","n":"N=3","a":["−","/"],"c":[{"t":"opp","n":"N=2","a":["−","/"],"c":[{"t":"max","n":"N=1","a":["−","/"],"c":[{"v":-1},{"v":-1}]},{"t":"max","n":"N=1 ","a":["−","/"],"c":[{"v":-1},{"v":-1}]}]},{"t":"opp","n":"N=1","a":["−","/"],"c":[{"v":1},{"v":1}]}]}}</script></div>
+
+<p>Nếu agent trừ 1 (còn 2), dù đối thủ làm gì, agent cũng nhận lại số 1 và buộc phải đưa nó về 0 cho đối thủ, nên thua. Nếu agent chia đôi (còn 1), đối thủ buộc phải đưa về 0 và agent thắng. Minimax tự “nhìn ra” điều này bằng cách tính từ lá lên, không cần mẹo gì. Tính tương tự cho các \(N\) khác (bằng code): trong khoảng 1–15, người đi trước <b>thua</b> khi \(N \in \{1, 4, 6, 10, 14\}\) và thắng ở mọi trường hợp còn lại, nếu cả hai chơi tối ưu.</p>
+
+<h3>Minimax đảm bảo được gì?</h3>
+<p>Ký hiệu \(\pi_{\max}\), \(\pi_{\min}\) là chính sách minimax của agent và đối thủ, \(\pi_{7}\) là đối thủ chọn ngẫu nhiên đều (một đối thủ “bình thường”), và \(\pi_{\text{exptmax}(7)}\) là chính sách expectimax của agent khi tin đối thủ là \(\pi_7\). Ta tính giá trị của bốn tổ hợp trên trò ba thùng:</p>
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Agent \ Đối thủ</th><th class="n">\(\pi_{\min}\) (luôn chọn số nhỏ)</th><th class="n">\(\pi_7\) (ngẫu nhiên đều)</th></tr>
+<tr><td>\(\pi_{\max}\) (chọn B)</td><td class="n"><b>1</b></td><td class="n">2</td></tr>
+<tr><td>\(\pi_{\text{exptmax}(7)}\) (chọn C)</td><td class="n">−5</td><td class="n"><b>5</b></td></tr>
+</table></div>
+<p>Bảng này nói lên ba tính chất quan trọng của minimax:</p>
+<ol>
+<li><b>Tối ưu trước đối thủ tệ nhất.</b> Nếu đối thủ chơi minimax, chính sách minimax là phản ứng tốt nhất của agent: \(1 \ge -5\).</li>
+<li><b>Là cận dưới đảm bảo.</b> Dù đối thủ chơi thế nào, agent dùng minimax cũng nhận ít nhất giá trị minimax: hàng trên toàn \(\ge 1\). Đây là “bảo hiểm”.</li>
+<li><b>Không tối ưu nếu đối thủ không tệ nhất.</b> Gặp đối thủ ngẫu nhiên, minimax chỉ được 2, trong khi expectimax được 5. Minimax quá thận trọng khi đối thủ không thật sự đối đầu.</li>
+</ol>
+
+<div class="compare">
+<div><h4>Expectimax</h4><p>Giả định đối thủ theo một phân phối <b>đã biết</b>. Tối đa hóa giá trị <b>kỳ vọng</b>. Tốt nhất nếu mô hình đối thủ đúng, nhưng có thể rất tệ nếu sai (ví dụ −5).</p></div>
+<div><h4>Minimax</h4><p>Giả định đối thủ <b>tệ nhất</b>. Tối đa hóa giá trị <b>đảm bảo</b>. Luôn an toàn, nhưng có thể bỏ lỡ cơ hội khi đối thủ không chơi tối ưu.</p></div>
+</div>
+
+<h3>Chi phí tính toán</h3>
+<p>Minimax là tìm kiếm trên cây nên phải duyệt toàn bộ cây. Với hệ số phân nhánh \(b\) và \(d\) lượt mỗi người (cây sâu \(2d\)), thời gian là \(O(b^{2d})\), bộ nhớ \(O(d)\) nếu duyệt theo chiều sâu. Cờ vua có \(b \approx 35\) và một ván khoảng \(d \approx 50\) lượt mỗi bên, tức là \(35^{100}\) nút. Không máy tính nào chạy nổi. Bài 4.2 sẽ giải quyết vấn đề này.</p>
+
+<div class="box recap"><div class="box-h">Ghi nhớ</div>
+<p>Trò chơi = tìm kiếm + \(\text{Player}(s)\) + Utility cuối ván. Mọi thuật toán đều tính giá trị từ lá lên, chỉ khác phép tính ở nút đối thủ: <b>tổng theo xác suất</b> (game evaluation, expectimax) hoặc <b>min</b> (minimax). Minimax cho một mức đảm bảo dưới, nhưng chỉ tối ưu khi đối thủ thật sự chơi tối ưu.</p>
+</div>
+
+<div class="box link"><div class="box-h">Bài tiếp theo</div>
+<p>Thêm may rủi vào trò chơi (expectiminimax). Làm cho minimax chạy được trên những trò chơi khổng lồ bằng hàm đánh giá và alpha-beta. Học hàm đánh giá từ tự chơi (TD learning). Cuối cùng là các trò chơi hai bên đi cùng lúc và trò chơi không tổng bằng 0.</p>
+</div>
+
+<details class="quiz"><summary>Tự kiểm tra: trong trò ba thùng, nếu đối thủ chọn số nhỏ với xác suất 0.9 thì expectimax chọn thùng nào?</summary><div class="ans"><p>A: \(0.9(-50) + 0.1(50) = -40\). B: \(0.9(1) + 0.1(3) = 1.2\). C: \(0.9(-5) + 0.1(15) = -3\). Chọn B. Khi đối thủ gần như đối đầu, expectimax tự động tiến gần tới quyết định của minimax.</p></div></details>
+<details class="quiz"><summary>Tự kiểm tra: vì sao minimax là “cận dưới” cho agent nhưng không phải chiến lược tốt nhất mọi lúc?</summary><div class="ans"><p>Minimax tính giá trị tệ nhất có thể xảy ra, nên mọi đối thủ khác chỉ có thể cho agent bằng hoặc nhiều hơn. Nhưng chính sách tốt nhất phụ thuộc vào đối thủ thật. Nếu biết đối thủ hay mắc sai lầm, chọn nước “mạo hiểm” khai thác sai lầm đó sẽ có lợi hơn.</p></div></details>
+
+<p class="src">Nguồn: Stanford CS221 Spring 2025 — <a href="https://stanford-cs221.github.io/spring2025/modules/">Games 1</a> (overview, modeling, game evaluation, expectimax, minimax); kịch bản thuyết trình Games 1 của lớp.</p>
+
+</article></main></div>
+</body></html>

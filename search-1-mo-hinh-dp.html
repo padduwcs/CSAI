@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2.1 Mô hình hóa tìm kiếm và quy hoạch động · CSAI</title>
+<meta name="description" content="Bài 2.1: bài toán tìm kiếm, mô hình hóa trạng thái, backtracking, DFS, BFS, iterative deepening và quy hoạch động.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/katex/katex.min.css"><link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/vendor/katex/katex.min.js"></script><script defer src="assets/vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="assets/site.js"></script><script defer src="assets/sim.js"></script>
+</head>
+<body data-page="search-1">
+<div class="layout"><aside class="sidebar" id="sidebar"></aside>
+<main class="page" id="main"><article class="content">
+
+<header class="hero">
+  <div class="eyebrow">Chương 2 · Tìm kiếm · Bài 1</div>
+  <h1>Mô hình hóa, tìm kiếm trên cây và quy hoạch động</h1>
+  <p class="lead">Học máy trả lời bằng <em>một</em> dự đoán. Nhưng muốn đi từ nhà tới trường, giải khối Rubik hay lập lộ trình cho robot, ta cần cả một <em>chuỗi hành động</em>, trong đó bước trước quyết định bước sau có thể làm gì. Bài này dạy cách mô tả loại bài toán đó và hai cách giải đầu tiên.</p>
+  <div class="meta">
+    <div><h4>Bạn sẽ hiểu</h4><ul><li>Năm thành phần của một bài toán tìm kiếm</li><li>Trạng thái cần chứa những thông tin gì</li><li>Backtracking, DFS, BFS, DFS-ID khác nhau ra sao</li><li>Quy hoạch động tránh tính lại như thế nào</li></ul></div>
+    <div><h4>Cần biết trước</h4><p style="margin:0">Không cần kiến thức của chương 1. Ký hiệu big-O sẽ được giải thích ở mục 3.</p></div>
+  </div>
+</header>
+
+<h2 id="tong-quan"><span class="sec">1</span>Từ một quyết định đến một chuỗi quyết định</h2>
+
+<div class="box problem"><div class="box-h">Vấn đề</div>
+<p>Bạn cần đi từ S tới G theo bản đồ dưới đây. Số trên mỗi đoạn đường là chi phí (thời gian, tiền…). Đi đường nào thì tổng chi phí nhỏ nhất?</p>
+</div>
+
+<figure class="fig">
+<svg viewBox="0 0 520 220" role="img" aria-label="Bản đồ nhỏ S, A, B, C, D, G">
+  <g class="ln-ink"><line x1="60" y1="110" x2="180" y2="50"/><line x1="60" y1="110" x2="180" y2="170"/><line x1="180" y1="50" x2="330" y2="50"/><line x1="180" y1="50" x2="460" y2="110"/><line x1="330" y1="50" x2="460" y2="110"/><line x1="180" y1="170" x2="330" y2="170"/><line x1="330" y1="170" x2="460" y2="110"/></g>
+  <g class="t-b"><text x="112" y="70">2</text><text x="112" y="160">1</text><text x="250" y="40">2</text><text x="300" y="96">9</text><text x="400" y="72">2</text><text x="250" y="162">1</text><text x="404" y="156">10</text></g>
+  <circle cx="60" cy="110" r="20" class="nd-acc"/><text x="60" y="115" text-anchor="middle" class="t-b">S</text>
+  <circle cx="180" cy="50" r="20" class="nd"/><text x="180" y="55" text-anchor="middle" class="t-b">A</text>
+  <circle cx="180" cy="170" r="20" class="nd"/><text x="180" y="175" text-anchor="middle" class="t-b">B</text>
+  <circle cx="330" cy="50" r="20" class="nd"/><text x="330" y="55" text-anchor="middle" class="t-b">C</text>
+  <circle cx="330" cy="170" r="20" class="nd"/><text x="330" y="175" text-anchor="middle" class="t-b">D</text>
+  <circle cx="460" cy="110" r="20" class="nd-ok"/><text x="460" y="115" text-anchor="middle" class="t-b">G</text>
+</svg>
+<figcaption><b>Bản đồ ví dụ dùng xuyên suốt chương 2.</b> Có ba đường đi: S→A→G tốn 2+9 = 11, S→A→C→G tốn 2+2+2 = <b>6</b>, S→B→D→G tốn 1+1+10 = 12.</figcaption>
+</figure>
+
+<p>Có hai “mẹo” tự nhiên, và cả hai đều thất bại:</p>
+<ul>
+<li><b>Chọn đường ít đoạn nhất</b> (S→A→G, 2 đoạn) cho chi phí 11. Ít bước chưa chắc rẻ.</li>
+<li><b>Mỗi bước chọn cạnh rẻ nhất trước mắt</b> (đi tham lam, <span class="en">greedy</span>): từ S chọn B (giá 1), từ B chọn D (giá 1), rồi buộc phải trả 10 để tới G, tổng 12. Rẻ trước mắt có thể dẫn vào ngõ cụt đắt.</li>
+</ul>
+<p>Bài học là một quyết định chỉ có thể đánh giá khi tính đến <strong>hậu quả của nó về sau</strong>. Đó là điểm khác biệt cốt lõi so với mô hình phản xạ của chương 1, và là lý do ta cần <dfn>bài toán tìm kiếm</dfn> (<span class="en">search problem</span>).</p>
+
+<h2 id="mo-hinh-hoa"><span class="sec">2</span>Mô hình hóa một bài toán tìm kiếm</h2>
+<p>Để máy giải được, ta phải mô tả bài toán bằng những khái niệm chính xác. Hãy hình dung một “thế giới” chuyển từ tình huống này sang tình huống khác mỗi khi ta hành động. Mỗi tình huống là một <dfn>trạng thái</dfn> (<span class="en">state</span>). Một bài toán tìm kiếm gồm năm thành phần:</p>
+
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Thành phần</th><th>Ý nghĩa</th><th>Trong bản đồ trên</th></tr>
+<tr><td>\(s_{\text{start}}\)</td><td>trạng thái bắt đầu</td><td>S</td></tr>
+<tr><td>\(\text{Actions}(s)\)</td><td>các hành động được phép tại \(s\)</td><td>Actions(S) = {đi A, đi B}</td></tr>
+<tr><td>\(\text{Cost}(s, a)\)</td><td>chi phí khi làm \(a\) tại \(s\)</td><td>Cost(S, đi A) = 2</td></tr>
+<tr><td>\(\text{Succ}(s, a)\)</td><td>trạng thái kế tiếp (<span class="en">successor</span>)</td><td>Succ(S, đi A) = A</td></tr>
+<tr><td>\(\text{IsEnd}(s)\)</td><td>\(s\) có phải đích không?</td><td>IsEnd(G) = đúng</td></tr>
+</table></div>
+<p>Lời giải là một chuỗi hành động đưa \(s_{\text{start}}\) tới một trạng thái đích. Chi phí của lời giải là tổng chi phí từng bước. Mục tiêu là tìm lời giải có chi phí nhỏ nhất. Trong chương này, mọi hành động đều <em>tất định</em>: làm \(a\) tại \(s\) luôn đưa tới cùng một \(\text{Succ}(s,a)\). Chương 3 sẽ bỏ giả định này.</p>
+
+<div class="box example"><div class="box-h">Ví dụ chạy xuyên suốt · Bài toán đi bộ và đi tàu (CS221)</div>
+<p>Các khu phố đánh số \(1, 2, \dots, n\). Từ khu \(s\), bạn có thể <b>đi bộ</b> tới \(s+1\) (tốn 1 phút) hoặc <b>đi tàu</b> tới \(2s\) (tốn 2 phút), miễn không vượt quá \(n\). Hãy đi từ 1 tới \(n\) nhanh nhất.</p>
+<p>Mô hình hóa: trạng thái là số hiệu khu phố hiện tại; \(s_{\text{start}} = 1\); \(\text{Actions}(s) = \{\text{bộ}, \text{tàu}\}\) (chỉ những hành động không vượt \(n\)); \(\text{Succ}(s, \text{bộ}) = s+1\), \(\text{Succ}(s, \text{tàu}) = 2s\); \(\text{Cost}\) lần lượt là 1 và 2; \(\text{IsEnd}(s) \iff s = n\).</p>
+</div>
+
+<h3>Cây tìm kiếm</h3>
+<p>Mọi diễn biến có thể có được vẽ thành một <dfn>cây tìm kiếm</dfn> (<span class="en">search tree</span>). Gốc là \(s_{\text{start}}\), mỗi nhánh là một hành động, mỗi đường từ gốc xuống lá là một chuỗi hành động. Với \(n = 4\):</p>
+
+<figure class="fig">
+<svg viewBox="0 0 600 322" role="img" aria-label="Cây tìm kiếm của bài đi bộ và đi tàu với n bằng 4">
+  <rect x="30" y="85" width="250" height="198" rx="12" fill="none" class="ln-dash"/><rect x="330" y="85" width="250" height="198" rx="12" fill="none" class="ln-dash"/>
+  <text x="155" y="304" text-anchor="middle" class="t-small t-muted">cây con “từ 2”</text><text x="455" y="304" text-anchor="middle" class="t-small t-muted">cây con “từ 2” (y hệt)</text>
+  <g class="ln-ink"><line x1="300" y1="30" x2="155" y2="110"/><line x1="300" y1="30" x2="455" y2="110"/><line x1="155" y1="110" x2="85" y2="185"/><line x1="155" y1="110" x2="225" y2="185"/><line x1="455" y1="110" x2="385" y2="185"/><line x1="455" y1="110" x2="525" y2="185"/><line x1="85" y1="185" x2="85" y2="255"/><line x1="385" y1="185" x2="385" y2="255"/></g>
+  <g class="t-small t-muted"><text x="210" y="62" text-anchor="end">bộ (1)</text><text x="392" y="62">tàu (2)</text><text x="108" y="146" text-anchor="end">bộ</text><text x="200" y="146">tàu</text><text x="408" y="146" text-anchor="end">bộ</text><text x="500" y="146">tàu</text><text x="92" y="224">bộ</text><text x="392" y="224">bộ</text></g>
+  <circle cx="300" cy="30" r="17" class="nd-acc"/><text x="300" y="35" text-anchor="middle" class="t-b">1</text>
+  <circle cx="155" cy="110" r="17" class="nd"/><text x="155" y="115" text-anchor="middle" class="t-b">2</text>
+  <circle cx="455" cy="110" r="17" class="nd"/><text x="455" y="115" text-anchor="middle" class="t-b">2</text>
+  <circle cx="85" cy="185" r="17" class="nd"/><text x="85" y="190" text-anchor="middle" class="t-b">3</text>
+  <circle cx="225" cy="185" r="17" class="nd-ok"/><text x="225" y="190" text-anchor="middle" class="t-b">4</text>
+  <circle cx="385" cy="185" r="17" class="nd"/><text x="385" y="190" text-anchor="middle" class="t-b">3</text>
+  <circle cx="525" cy="185" r="17" class="nd-ok"/><text x="525" y="190" text-anchor="middle" class="t-b">4</text>
+  <circle cx="85" cy="255" r="17" class="nd-ok"/><text x="85" y="260" text-anchor="middle" class="t-b">4</text>
+  <circle cx="385" cy="255" r="17" class="nd-ok"/><text x="385" y="260" text-anchor="middle" class="t-b">4</text>
+  <g class="t-small t-b t-ok"><text x="250" y="190">= 3</text><text x="550" y="190">= 4</text><text x="110" y="260">= 3</text><text x="410" y="260">= 4</text></g>
+</svg>
+<figcaption><b>Cây tìm kiếm với \(n = 4\).</b> Lá xanh là đích, kèm tổng chi phí của đường dẫn tới đó. Có hai đường tối ưu cùng chi phí 3. Để ý hai khung đứt: sau khi tới khu 2 (dù bằng đi bộ hay đi tàu), phần cây phía dưới <em>giống hệt nhau</em>. Một cây tìm kiếm ngây thơ sẽ tính phần này hai lần. Mục 4 sẽ khai thác điều này.</figcaption>
+</figure>
+
+<h3>Trạng thái phải nhớ những gì?</h3>
+<p>Đây là quyết định quan trọng nhất khi mô hình hóa. Nguyên tắc như sau:</p>
+<div class="box def"><div class="box-h">Nguyên tắc chọn trạng thái</div>
+<p>Trạng thái là bản tóm tắt <b>vừa đủ</b> về quá khứ để quyết định được tương lai: hành động nào hợp lệ, chi phí bao nhiêu, đã tới đích chưa. Thiếu thông tin thì mô hình sai. Thừa thông tin thì số trạng thái phình to vô ích.</p>
+</div>
+<div class="box example"><div class="box-h">Ví dụ · Thêm một ràng buộc</div>
+<p>Tìm đường từ thành phố 1 tới \(n\), nhưng phải ghé <b>ít nhất 3 thành phố lẻ</b>. Chỉ lưu “đang ở đâu” là chưa đủ, vì hai người cùng đứng ở thành phố 6, một người đã ghé 3 thành phố lẻ và một người mới ghé 1, có tương lai khác nhau. Lưu toàn bộ lịch sử thì thừa. Trạng thái vừa đủ là \((\text{vị trí},\ \min(\text{số thành phố lẻ đã ghé}, 3))\): khi đã đủ 3, ghé thêm cũng không thay đổi gì. Số trạng thái chỉ khoảng \(n \times 4\).</p>
+</div>
+
+<h2 id="tree-search"><span class="sec">3</span>Tìm kiếm trên cây</h2>
+<p>Cách giải đơn giản nhất là duyệt cây tìm kiếm. Các thuật toán dưới đây đều “đi trên cây” và chỉ khác nhau ở <em>thứ tự</em> đi cũng như <em>khi nào dừng</em>.</p>
+
+<div class="box math"><div class="box-h">Toán nền · Ký hiệu big-O và sự bùng nổ của cây</div>
+<p>Gọi \(b\) là <dfn>hệ số phân nhánh</dfn> (số hành động mỗi trạng thái) và \(D\) là độ sâu tối đa của cây. Tầng thứ \(k\) có \(b^k\) nút, nên cả cây có khoảng \(b^D\) nút. Ký hiệu \(O(b^D)\) đọc là “cỡ \(b^D\)”: ta chỉ quan tâm số phép tính tăng theo quy luật nào và bỏ qua hằng số. Với \(b = 2\), \(D = 50\), ta có \(2^{50} \approx 10^{15}\) nút. Đây là <em>tăng theo hàm mũ</em>, và là kẻ thù chính của tìm kiếm.</p>
+</div>
+
+<h3>Backtracking search: thử hết</h3>
+<p><b>Ý tưởng:</b> đi hết mọi nhánh của cây và ghi nhớ đường rẻ nhất gặp được. Thuật toán đệ quy: tại mỗi trạng thái, lần lượt thử từng hành động, đi sâu xuống, rồi <em>quay lui</em> (<span class="en">backtrack</span>) để thử hành động khác.</p>
+<div class="algo"><div class="algo-h">Backtracking search</div>
+<pre><code>def backtrack(s, chi_phí_đã_đi):
+    if IsEnd(s):
+        cập nhật lời giải tốt nhất nếu chi_phí_đã_đi nhỏ hơn
+        return
+    for a in Actions(s):
+        backtrack(Succ(s, a), chi_phí_đã_đi + Cost(s, a))</code></pre></div>
+<p>Thuật toán luôn tìm được lời giải tối ưu (nếu cây hữu hạn), nhưng tốn \(O(b^D)\) thời gian. Bộ nhớ chỉ cần \(O(D)\), vì tại mỗi lúc chỉ giữ đường đi hiện tại.</p>
+
+<h3>DFS, BFS: dừng sớm khi có điều kiện đặc biệt</h3>
+<p>Backtracking phải duyệt hết cây vì không biết đường nào rẻ hơn cho tới khi xem hết. Nếu chi phí có cấu trúc đặc biệt, ta có thể dừng sớm:</p>
+<ul>
+<li><dfn>DFS</dfn> (<span class="en">depth-first search</span>, tìm theo chiều sâu): giống backtracking nhưng <b>dừng ngay khi gặp đích đầu tiên</b>. Chỉ đúng nếu mọi cạnh có chi phí 0, tức là ta chỉ cần <em>một</em> lời giải bất kỳ. Dùng <em>stack</em> (ngăn xếp: vào sau, ra trước).</li>
+<li><dfn>BFS</dfn> (<span class="en">breadth-first search</span>, tìm theo chiều rộng): xét hết tầng 1, rồi tầng 2, …, và dừng khi gặp đích đầu tiên. Đích gặp đầu tiên nằm ở tầng nông nhất, nên là lời giải <b>ít bước nhất</b>. Đây là tối ưu nếu mọi cạnh <b>có cùng chi phí</b> \(c > 0\). Dùng <em>queue</em> (hàng đợi: vào trước, ra trước).</li>
+</ul>
+<p>Mô phỏng dưới đây chạy hai thuật toán trên cùng một cây với đích là G. Hãy chú ý cấu trúc dữ liệu (stack hay queue) thay đổi thế nào sau mỗi bước, vì đó là thứ duy nhất phân biệt DFS và BFS:</p>
+
+<div class="sim" data-sim="traverse"><script type="application/json">{"title":"DFS và BFS trên cùng một cây","sub":"Đích là G. Đổi thuật toán bằng nút DFS/BFS","goal":"G","tree":{"n":"A","c":[{"n":"B","c":[{"n":"D"},{"n":"E"}]},{"n":"C","c":[{"n":"F","c":[{"n":"H"},{"n":"I"}]},{"n":"G"}]}]}}</script></div>
+
+<p>DFS lặn xuống nhánh trái đến tận đáy trước, nên phải thăm 9 nút (cả nhánh B và nhánh F) mới tới G. BFS quét theo tầng, nên tới G ở tầng 2 sau 7 nút. Nhưng hãy để ý kích thước queue của BFS: nó phải giữ <em>cả một tầng</em> trong bộ nhớ, và tầng thứ \(d\) có tới \(b^d\) nút.</p>
+
+<h3>DFS với độ sâu tăng dần (DFS-ID)</h3>
+<p>Có cách nào lấy được ưu điểm của cả hai không? <dfn>Iterative deepening</dfn> chạy DFS với giới hạn độ sâu 1, rồi 2, rồi 3, … cho tới khi gặp đích. Nó tìm được lời giải nông nhất như BFS, nhưng mỗi lượt chỉ là một DFS nên bộ nhớ nhỏ như DFS. Việc lặp lại các tầng trên nghe có vẻ lãng phí, nhưng tầng cuối luôn có nhiều nút hơn tổng các tầng trên cộng lại (khi \(b \ge 2\)). Vì vậy chi phí tổng vẫn cỡ \(O(b^d)\).</p>
+
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Thuật toán</th><th>Dùng khi chi phí cạnh</th><th>Thời gian</th><th>Bộ nhớ</th></tr>
+<tr><td>Backtracking</td><td>bất kỳ</td><td>\(O(b^D)\)</td><td>\(O(D)\)</td></tr>
+<tr><td>DFS</td><td>bằng 0 (chỉ cần có lời giải)</td><td>\(O(b^D)\)</td><td>\(O(D)\)</td></tr>
+<tr><td>BFS</td><td>hằng số \(c > 0\)</td><td>\(O(b^d)\)</td><td>\(O(b^d)\)</td></tr>
+<tr><td>DFS-ID</td><td>hằng số \(c > 0\)</td><td>\(O(b^d)\)</td><td>\(O(d)\)</td></tr>
+<caption>\(D\): độ sâu tối đa của cây; \(d\): độ sâu của lời giải nông nhất (\(d \le D\), thường nhỏ hơn nhiều).</caption></table></div>
+
+<div class="box pitfall"><div class="box-h">Dễ nhầm · BFS có tìm đường rẻ nhất không?</div>
+<p>Chỉ khi mọi cạnh cùng giá. Trên bản đồ đầu bài, BFS gặp G ở tầng 2 qua S→A→G (giá 11) trước khi xét tới tầng 3 nơi có đường giá 6. BFS tối ưu <b>số bước</b>, không tối ưu <b>tổng chi phí</b>.</p>
+</div>
+
+<p>Mọi thuật toán trên cây đều tốn thời gian hàm mũ. Nguyên nhân sâu xa nằm ở hình cây tìm kiếm: những cây con giống hệt nhau bị duyệt đi duyệt lại.</p>
+
+<h2 id="dp"><span class="sec">4</span>Quy hoạch động: tính mỗi trạng thái một lần</h2>
+
+<p><b>Quan sát then chốt:</b> nếu trạng thái được chọn đúng (chứa đủ thông tin cho tương lai), thì chi phí tốt nhất để đi từ một trạng thái tới đích <em>không phụ thuộc</em> vào việc ta đã tới trạng thái đó bằng cách nào. Ở cây \(n = 4\), từ khu 2 thì tốn tối thiểu bao nhiêu để tới 4 là cùng một câu trả lời cho cả hai nhánh. Vậy chỉ cần tính <em>một lần</em> rồi ghi nhớ lại.</p>
+
+<p>Gọi \(\text{FutureCost}(s)\) là chi phí nhỏ nhất để đi từ \(s\) tới đích. Tại \(s\), nếu chọn hành động \(a\), ta trả \(\text{Cost}(s,a)\) rồi đứng ở \(\text{Succ}(s,a)\). Từ đó, cách tốt nhất tốn \(\text{FutureCost}(\text{Succ}(s,a))\). Chọn \(a\) làm tổng này nhỏ nhất:</p>
+\[\text{FutureCost}(s) = \begin{cases} 0 & \text{nếu IsEnd}(s) \\[4pt] \min\limits_{a\in\text{Actions}(s)} \big[\underbrace{\text{Cost}(s,a)}_{\text{trả ngay}} + \underbrace{\text{FutureCost}(\text{Succ}(s,a))}_{\text{phần còn lại, tối ưu}}\big] & \text{ngược lại.} \end{cases}\]
+<p>Đây là một <dfn>công thức truy hồi</dfn> (<span class="en">recurrence</span>): giá trị ở \(s\) được định nghĩa qua giá trị ở các trạng thái kế tiếp. Vì sao được phép giả định phần còn lại là tối ưu? Nếu phần còn lại chưa tối ưu, ta thay nó bằng phần tốt hơn và cả lời giải sẽ rẻ hơn. Đây là <em>nguyên lý tối ưu con</em>.</p>
+
+<div class="algo"><div class="algo-h">Quy hoạch động <small>đệ quy + ghi nhớ (memoization)</small></div>
+<pre><code>cache = {}
+def FutureCost(s):
+    if s in cache: return cache[s]          <span class="c"># đã tính rồi → dùng lại</span>
+    if IsEnd(s): kq = 0
+    else: kq = min(Cost(s,a) + FutureCost(Succ(s,a)) for a in Actions(s))
+    cache[s] = kq
+    return kq</code></pre></div>
+
+<div class="box example"><div class="box-h">Ví dụ · Đi bộ và đi tàu với n = 10, tính ngược từ đích</div>
+<div class="tbl-wrap" style="margin:.5rem 0"><table class="tbl">
+<tr><th class="n">\(s\)</th><th>Đi bộ: \(1 + \text{FC}(s+1)\)</th><th>Đi tàu: \(2 + \text{FC}(2s)\)</th><th class="n">\(\text{FutureCost}(s)\)</th></tr>
+<tr><td class="n">10</td><td colspan="2">đích</td><td class="n">0</td></tr>
+<tr><td class="n">9 → 6</td><td>1, 2, 3, 4</td><td>vượt quá 10</td><td class="n">1, 2, 3, 4</td></tr>
+<tr class="hl"><td class="n">5</td><td>1 + FC(6) = 5</td><td><b>2 + FC(10) = 2</b></td><td class="n"><b>2</b></td></tr>
+<tr><td class="n">4</td><td><b>1 + FC(5) = 3</b></td><td>2 + FC(8) = 4</td><td class="n">3</td></tr>
+<tr><td class="n">3</td><td><b>1 + FC(4) = 4</b></td><td>2 + FC(6) = 6</td><td class="n">4</td></tr>
+<tr><td class="n">2</td><td>1 + FC(3) = 5</td><td>2 + FC(4) = 5</td><td class="n">5 (hòa)</td></tr>
+<tr class="good"><td class="n">1</td><td><b>1 + FC(2) = 6</b></td><td>2 + FC(2) = 7</td><td class="n"><b>6</b></td></tr>
+</table></div>
+<p>Chi phí tối ưu từ 1 là <b>6</b>. Để dựng lại đường đi, từ 1 ta đi theo hành động đạt min ở mỗi dòng: 1 →bộ 2 →bộ 3 →bộ 4 →bộ 5 →tàu 10. (Ở khu 2 đi tàu tới 4 cũng tối ưu như nhau.) Dòng 5 là “điểm sáng”: từ 5, chỉ một chuyến tàu là tới thẳng 10.</p>
+</div>
+
+<h3>Phân tích</h3>
+<ul>
+<li><b>Hiệu quả:</b> mỗi trạng thái được tính đúng một lần, và mỗi lần xét các hành động của nó. Thời gian là \(O(\text{số trạng thái} \times \text{số hành động})\), chỉ <em>tuyến tính</em> theo số trạng thái thay vì hàm mũ theo độ sâu. Với bài đi bộ–tàu, đó là \(O(n)\) so với \(O(2^n)\) đường đi.</li>
+<li><b>Chính xác:</b> luôn cho lời giải tối ưu với chi phí cạnh bất kỳ (kể cả âm).</li>
+<li><b>Giới hạn quan trọng:</b> đồ thị trạng thái phải <b>không có chu trình</b> (<span class="en">acyclic</span>). Nếu A dẫn tới B và B lại dẫn về A, thì để tính FutureCost(A) ta cần FutureCost(B), mà FutureCost(B) lại cần FutureCost(A). Đệ quy chạy vòng tròn mãi mãi.</li>
+</ul>
+
+<div class="compare">
+<div><h4>Cây tìm kiếm</h4><p>Mỗi <em>đường đi</em> là một nhánh riêng, dù chúng gặp lại cùng một trạng thái. Số nút tăng theo hàm mũ.</p></div>
+<div><h4>Đồ thị trạng thái</h4><p>Mỗi <em>trạng thái</em> là một nút duy nhất, gộp mọi đường đi tới nó. Quy hoạch động làm việc trên đồ thị này.</p></div>
+</div>
+
+<div class="box recap"><div class="box-h">Ghi nhớ</div>
+<p>Bài toán tìm kiếm = \((s_{\text{start}}, \text{Actions}, \text{Cost}, \text{Succ}, \text{IsEnd})\). Trạng thái chỉ chứa phần quá khứ cần cho tương lai. Tìm kiếm trên cây (backtracking, DFS, BFS, DFS-ID) đơn giản nhưng tốn thời gian hàm mũ. DFS/BFS chỉ tối ưu khi chi phí cạnh đặc biệt. Quy hoạch động dùng truy hồi FutureCost và ghi nhớ để tính mỗi trạng thái một lần, nhưng đòi hỏi đồ thị không có chu trình.</p>
+</div>
+
+<div class="box link"><div class="box-h">Bài tiếp theo giải quyết gì?</div>
+<p>Bản đồ thực tế đầy chu trình (đi A→B rồi quay về A là hợp lệ), nên quy hoạch động không dùng được. Bài 2.2 giới thiệu <b>UCS</b>: đi <em>xuôi</em> từ điểm đầu, mở rộng trạng thái theo thứ tự chi phí tăng dần, và chịu được chu trình. Sau đó là <b>A*</b>, phiên bản biết “nhìn về phía đích” để tìm nhanh hơn.</p>
+</div>
+
+<details class="quiz"><summary>Tự kiểm tra: bài người nông dân chở sói, dê, bắp cải qua sông — trạng thái nên là gì?</summary><div class="ans"><p>Bờ hiện tại của 4 đối tượng (người, sói, dê, bắp cải), mỗi cái ở bờ trái hoặc phải, tức là \(2^4 = 16\) trạng thái. Hành động là người chèo thuyền qua sông, có thể chở theo tối đa một vật cùng bờ. Các trạng thái “sói với dê” hoặc “dê với bắp cải” ở một bờ không có người bị loại vì không hợp lệ. Vị trí con thuyền không cần lưu riêng vì thuyền luôn đi cùng người.</p></div></details>
+<details class="quiz"><summary>Tự kiểm tra: vì sao DFS-ID không tốn gấp nhiều lần BFS dù lặp lại các tầng trên?</summary><div class="ans"><p>Với \(b = 2\), tầng \(d\) có \(2^d\) nút, còn tất cả các tầng trên cộng lại chỉ có \(2^d - 1\) nút. Lặp lại mọi tầng trên cho từng giới hạn độ sâu tổng cộng cũng chỉ tốn khoảng gấp đôi lượt cuối. Bậc tăng vẫn là \(O(b^d)\).</p></div></details>
+
+<p class="src">Nguồn: Stanford CS221 Spring 2025 — <a href="https://stanford-cs221.github.io/spring2025/modules/">Search 1</a> (overview, modeling, tree search, dynamic programming); slide “Tìm kiếm I” của lớp.</p>
+
+</article></main></div>
+</body></html>

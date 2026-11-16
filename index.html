@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CSAI · Cơ sở Trí tuệ nhân tạo</title>
+<meta name="description" content="Bài giảng Cơ sở Trí tuệ nhân tạo bằng tiếng Việt cho người mới, bám theo Stanford CS221: học máy, tìm kiếm, MDP và trò chơi.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/katex/katex.min.css"><link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/vendor/katex/katex.min.js"></script><script defer src="assets/vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="assets/site.js"></script>
+</head>
+<body data-page="home">
+<main class="home" id="main">
+  <div class="eyebrow">Cơ sở Trí tuệ nhân tạo · theo Stanford CS221 (Spring 2025)</div>
+  <h1>Học AI từ con số 0, từng bước một</h1>
+  <p class="lead">Chín bài giảng bằng tiếng Việt, đi từ việc dạy máy học từ dữ liệu đến việc ra quyết định khi có rủi ro và có đối thủ. Mỗi khái niệm bắt đầu từ một bài toán thực tế, giải thích trực giác trước rồi mới đến công thức. Mỗi thuật toán đều có ví dụ tính tay và mô phỏng chạy từng bước.</p>
+
+  <div class="road">
+    <section class="ch">
+      <div class="k">Chương 1</div><h2>Học máy</h2>
+      <p>Dạy máy rút ra quy luật từ ví dụ: mô hình, hàm mất mát, gradient descent, mạng nơ-ron, tổng quát hóa.</p>
+      <a class="l" href="ml-1-hoi-quy-phan-loai.html"><b>1.1</b><span>Hồi quy và phân loại tuyến tính<small>loss, gradient descent, SGD, hinge loss</small></span></a>
+      <a class="l" href="ml-2-phi-tuyen-mang-noron.html"><b>1.2</b><span>Đặc trưng phi tuyến, mạng nơ-ron, lan truyền ngược<small>Group DRO, feature templates, backprop</small></span></a>
+      <a class="l" href="ml-3-tong-quat-hoa-kmeans.html"><b>1.3</b><span>Tổng quát hóa, thực hành tốt, k‑means<small>overfitting, regularization, train/val/test</small></span></a>
+    </section>
+    <section class="ch">
+      <div class="k">Chương 2</div><h2>Tìm kiếm</h2>
+      <p>Tìm chuỗi hành động rẻ nhất trong thế giới tất định: từ duyệt cây đến UCS và A*.</p>
+      <a class="l" href="search-1-mo-hinh-dp.html"><b>2.1</b><span>Mô hình hóa, tìm kiếm trên cây, quy hoạch động<small>trạng thái, DFS, BFS, DFS-ID, FutureCost</small></span></a>
+      <a class="l" href="search-2-ucs-astar.html"><b>2.2</b><span>UCS, học chi phí và A*<small>tính đúng của UCS, structured perceptron, heuristic, relaxation</small></span></a>
+    </section>
+    <section class="ch">
+      <div class="k">Chương 3</div><h2>Quyết định Markov</h2>
+      <p>Khi hành động có kết quả ngẫu nhiên: chính sách, giá trị kỳ vọng, và học từ trải nghiệm.</p>
+      <a class="l" href="mdp-1-mo-hinh-danh-gia.html"><b>3.1</b><span>MDP và đánh giá chính sách<small>chuyển trạng thái, utility, discount</small></span></a>
+      <a class="l" href="mdp-2-value-iteration-rl.html"><b>3.2</b><span>Value iteration và học tăng cường<small>Monte Carlo, SARSA, Q-learning, ε-greedy</small></span></a>
+    </section>
+    <section class="ch">
+      <div class="k">Chương 4</div><h2>Trò chơi</h2>
+      <p>Khi bên kia là đối thủ có chủ đích: minimax, alpha-beta, chiến lược hỗn hợp, cân bằng Nash.</p>
+      <a class="l" href="games-1-minimax.html"><b>4.1</b><span>Mô hình trò chơi, expectimax, minimax<small>game evaluation, tính chất của minimax</small></span></a>
+      <a class="l" href="games-2-alphabeta-td.html"><b>4.2</b><span>Hàm đánh giá, alpha-beta, TD learning, trò chơi đồng thời<small>expectiminimax, định lý minimax, Nash</small></span></a>
+    </section>
+  </div>
+
+  <h2 style="border:0;padding:0;margin-top:1rem">Cách đọc bài</h2>
+  <p>Các bài nối tiếp nhau, vì vậy nên học theo thứ tự. Mỗi bài mở đầu bằng “Bạn sẽ hiểu” và “Cần biết trước”, và kết thúc bằng “Ghi nhớ” cùng câu hỏi tự kiểm tra. Các khung màu có vai trò cố định:</p>
+  <div class="compare">
+    <div class="box problem" style="margin:0"><div class="box-h">Bài toán / Vấn đề</div><p>Tình huống thực tế khiến khái niệm mới xuất hiện.</p></div>
+    <div class="box idea" style="margin:0"><div class="box-h">Ý tưởng</div><p>Trực giác cốt lõi, đọc trước khi vào công thức.</p></div>
+    <div class="box def" style="margin:0"><div class="box-h">Định nghĩa / Định lý</div><p>Phát biểu chính xác cần nhớ.</p></div>
+    <div class="box math" style="margin:0"><div class="box-h">Toán nền</div><p>Kiến thức toán được giải thích ngay khi cần đến.</p></div>
+    <div class="box pitfall" style="margin:0"><div class="box-h">Dễ nhầm</div><p>Phân biệt các khái niệm, thuật toán hay bị lẫn.</p></div>
+    <div class="box recap" style="margin:0"><div class="box-h">Ghi nhớ</div><p>Tóm tắt điều cốt lõi của bài.</p></div>
+  </div>
+  <p style="margin-top:1.4rem">Các khung <b>mô phỏng</b> có nút “Bước tiếp ▶” để chạy thuật toán từng bước. Mọi con số trong mô phỏng đều được tính bằng code từ dữ liệu ví dụ, nên bạn có thể dùng chúng để đối chiếu khi tự tính tay.</p>
+  <p class="src">Nguồn chính: <a href="https://stanford-cs221.github.io/spring2025/modules/">Stanford CS221 · Spring 2025 modules</a> và các slide thuyết trình của lớp.</p>
+</main>
+</body></html>

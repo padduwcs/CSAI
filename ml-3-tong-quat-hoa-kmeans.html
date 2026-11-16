@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="vi"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>1.3 Tổng quát hóa và k-means · CSAI</title>
+<meta name="description" content="Bài 1.3: lập trình khả vi, tổng quát hóa, overfitting, regularization, quy trình train/validation/test và thuật toán k-means.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/katex/katex.min.css"><link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/vendor/katex/katex.min.js"></script><script defer src="assets/vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="assets/site.js"></script><script defer src="assets/sim.js"></script>
+</head>
+<body data-page="ml-3">
+<div class="layout"><aside class="sidebar" id="sidebar"></aside>
+<main class="page" id="main"><article class="content">
+
+<header class="hero">
+  <div class="eyebrow">Chương 1 · Học máy · Bài 3</div>
+  <h1>Tổng quát hóa, thực hành tốt và k‑means</h1>
+  <p class="lead">Hai bài trước dạy cách làm TrainLoss nhỏ. Nhưng mục đích thật của học máy là dự đoán đúng trên dữ liệu <em>chưa từng thấy</em>. Bài này giải thích vì sao hai mục tiêu đó khác nhau và cách làm việc đúng quy trình. Cuối bài là k-means, một kiểu học không cần đáp án.</p>
+  <div class="meta">
+    <div><h4>Bạn sẽ hiểu</h4><ul><li>Mô hình lớn được ghép từ các khối khả vi ra sao</li><li>Overfitting là gì, vì sao xảy ra, cách kiểm soát</li><li>Vì sao phải tách train / validation / test</li><li>K-means phân cụm dữ liệu như thế nào</li></ul></div>
+    <div><h4>Cần biết trước</h4><p style="margin:0">Bài 1.1–1.2: TrainLoss, gradient descent, mạng nơ-ron, backprop.</p></div>
+  </div>
+</header>
+
+<h2 id="diff-prog"><span class="sec">1</span>Lập trình khả vi: ghép mô hình như lắp Lego</h2>
+<p>Ở bài 1.2, ta thấy backprop tính được gradient cho <em>bất kỳ</em> đồ thị tính toán nào, miễn mỗi phép tính trong đó có đạo hàm. Điều đó mở ra một cách nghĩ mới gọi là <dfn>lập trình khả vi</dfn> (<span class="en">differentiable programming</span>). Thay vì coi mô hình là một công thức cố định, ta coi nó là một <em>chương trình</em> lắp từ các khối có đạo hàm. Ta viết chương trình, còn máy tự lo phần đạo hàm.</p>
+
+<div class="tbl-wrap"><table class="tbl">
+<tr><th>Khối</th><th>Dùng cho dữ liệu</th><th>Ý tưởng chính</th></tr>
+<tr><td><b>FeedForward</b> (mạng truyền thẳng, MLP)</td><td>vector đặc trưng</td><td>Lặp lại \(h \leftarrow \sigma(Vh)\) nhiều lớp, như mạng ở bài 1.2.</td></tr>
+<tr><td><b>Conv</b> (mạng tích chập, CNN)</td><td>ảnh</td><td>Một bộ lọc nhỏ trượt khắp ảnh và dùng <em>cùng</em> trọng số ở mọi vị trí. Nhờ vậy, đặc trưng như “cạnh dọc” được nhận ra ở bất cứ đâu, và số tham số ít hơn rất nhiều.</td></tr>
+<tr><td><b>RNN</b> (mạng hồi quy)</td><td>chuỗi: câu, âm thanh</td><td>Đọc lần lượt từng phần tử và cập nhật một “trí nhớ” \(h_t = \sigma(V h_{t-1} + U x_t)\).</td></tr>
+<tr><td><b>Attention / Transformer</b></td><td>chuỗi</td><td>Mỗi vị trí tự quyết định nên “chú ý” tới những vị trí nào khác, bằng cách so độ tương đồng (tích vô hướng) giữa chúng. Đây là nền tảng của các mô hình ngôn ngữ lớn.</td></tr>
+</table></div>
+<p>Dù kiến trúc phức tạp đến đâu, quy trình học vẫn y hệt bài 1.1: định nghĩa loss, chạy backprop để lấy gradient, cập nhật bằng SGD. Điều thay đổi chỉ là lớp giả thuyết (câu hỏi ①).</p>
+
+<h2 id="generalization"><span class="sec">2</span>Tổng quát hóa: mục tiêu thật không phải TrainLoss</h2>
+
+<div class="box problem"><div class="box-h">Một bộ dự đoán “hoàn hảo” vô dụng</div>
+<p>Xét bộ dự đoán sau: “nếu \(x\) có trong tập huấn luyện thì trả về đúng \(y\) đã lưu, ngược lại trả về 0”. TrainLoss của nó bằng <b>0</b>, không thể tốt hơn. Nhưng với một căn nhà mới, nó luôn đoán giá bằng 0. Nó đã <em>học thuộc lòng</em> (<span class="en">rote learning</span>) chứ không học được quy luật.</p>
+</div>
+
+<p>Ví dụ cực đoan này cho thấy điều cốt lõi: <strong>tối thiểu TrainLoss chỉ là phương tiện</strong>. Mục tiêu thật là làm tốt trên dữ liệu tương lai, tức là <dfn>tổng quát hóa</dfn> (<span class="en">generalization</span>). Ta ước lượng khả năng đó bằng một <dfn>tập kiểm tra</dfn> (<span class="en">test set</span>): dữ liệu có đáp án nhưng được giấu đi và không bao giờ dùng khi huấn luyện.</p>
+
+<h3>Hai nguồn sai số</h3>
+<p>Vì sao mô hình học được lại có thể dở trên dữ liệu mới? Hãy hình dung tập mọi bộ dự đoán có thể có. Trong đó:</p>
+<ul>
+<li>\(f^*\) là bộ dự đoán tốt nhất có thể (lý tưởng, không ai biết).</li>
+<li>\(\mathcal F\) là lớp giả thuyết ta chọn, ví dụ mọi đường thẳng. \(g\) là phần tử tốt nhất <em>trong</em> \(\mathcal F\).</li>
+<li>\(\hat f\) là cái ta thực sự học được từ một lượng dữ liệu hữu hạn.</li>
+</ul>
+
+<figure class="fig">
+<svg viewBox="0 0 520 270" role="img" aria-label="Sai số xấp xỉ và sai số ước lượng">
+  <defs><marker id="m3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" class="arrow-head"/></marker></defs>
+  <rect x="8" y="8" width="504" height="254" rx="14" class="nd-soft"/>
+  <text x="26" y="34" class="t-small t-muted">tất cả các bộ dự đoán có thể có</text>
+  <ellipse cx="335" cy="148" rx="160" ry="96" class="nd-acc"/>
+  <text x="335" y="80" text-anchor="middle" class="t-acc t-b">lớp giả thuyết 𝓕</text>
+  <line x1="244" y1="148" x2="84" y2="148" class="ln-ink" marker-end="url(#m3a)"/>
+  <text x="128" y="138" text-anchor="middle" class="t-small t-b">sai số xấp xỉ</text>
+  <line x1="350" y1="186" x2="262" y2="155" class="ln-ink" marker-end="url(#m3a)"/>
+  <text x="352" y="146" class="t-small t-b">sai số ước lượng</text>
+  <circle cx="72" cy="148" r="8" class="f-ok"/>
+  <text x="72" y="176" text-anchor="middle" class="t-b t-ok">f*</text>
+  <text x="72" y="194" text-anchor="middle" class="t-small t-muted">tốt nhất có thể</text>
+  <circle cx="252" cy="148" r="8" class="f-acc"/>
+  <text x="252" y="130" text-anchor="middle" class="t-b t-acc">g</text>
+  <text x="252" y="176" text-anchor="middle" class="t-small t-muted">tốt nhất trong 𝓕</text>
+  <circle cx="360" cy="190" r="8" class="f-min"/>
+  <text x="374" y="195" class="t-b t-min">f̂</text>
+  <text x="360" y="218" text-anchor="middle" class="t-small t-muted">học được từ dữ liệu</text>
+</svg>
+<figcaption><b>Sai số của \(\hat f\) gồm hai phần.</b> <em>Sai số xấp xỉ</em> (<span class="en">approximation error</span>) đến từ việc lớp giả thuyết quá hẹp, đến mức cả phần tử tốt nhất của nó vẫn còn xa \(f^*\). <em>Sai số ước lượng</em> (<span class="en">estimation error</span>) đến từ việc dữ liệu hữu hạn, nên ta không tìm đúng được \(g\).</figcaption>
+</figure>
+
+\[\underbrace{\text{Err}(\hat f) - \text{Err}(f^*)}_{\text{tổng sai số dư}} = \underbrace{\text{Err}(\hat f) - \text{Err}(g)}_{\text{ước lượng}} + \underbrace{\text{Err}(g) - \text{Err}(f^*)}_{\text{xấp xỉ}}.\]
+
+<p>Hai phần này <strong>kéo co</strong> với nhau. Mở rộng \(\mathcal F\) (thêm đặc trưng, thêm lớp nơ-ron) làm sai số xấp xỉ giảm, vì \(\mathcal F\) chứa được hàm tốt hơn. Nhưng sai số ước lượng tăng, vì với cùng lượng dữ liệu, có quá nhiều ứng viên khớp được nhiễu ngẫu nhiên. Đó là hiện tượng quen thuộc:</p>
+
+<figure class="fig">
+<svg viewBox="0 0 440 262" role="img" aria-label="Train error và test error theo độ phức tạp mô hình">
+  <g class="grid"><line x1="40" y1="210" x2="420" y2="210"/><line x1="40" y1="20" x2="40" y2="210"/></g>
+  <text x="46" y="30" class="t-small t-muted">lỗi</text>
+  <line x1="207" y1="40" x2="207" y2="210" class="ln-dash"/>
+  <text x="207" y="32" text-anchor="middle" class="t-small t-b">vừa đủ</text>
+  <path d="M50,59 L59,71 L68,82 L77,92 L86,100 L95,108 L104,115 L113,120 L122,126 L131,130 L140,134 L149,137 L158,140 L167,142 L176,144 L185,145 L194,145 L203,146 L212,146 L221,145 L230,145 L239,144 L248,142 L257,141 L266,139 L275,136 L284,134 L293,131 L302,128 L311,125 L320,121 L329,118 L338,114 L347,110 L356,105 L365,100 L374,96 L383,90 L392,85 L401,80 L410,74" class="ln-acc"/>
+  <path d="M50,67 L59,79 L68,90 L77,100 L86,109 L95,117 L104,124 L113,131 L122,137 L131,142 L140,147 L149,151 L158,155 L167,158 L176,161 L185,164 L194,167 L203,169 L212,171 L221,173 L230,175 L239,176 L248,177 L257,179 L266,180 L275,181 L284,182 L293,182 L302,183 L311,184 L320,184 L329,185 L338,185 L347,186 L356,186 L365,186 L374,187 L383,187 L392,187 L401,188 L410,188" class="ln" style="stroke:var(--ok);stroke-width:2.4"/>
+  <text x="392" y="76" text-anchor="end" class="t-small t-acc t-b">lỗi trên tập test</text>
+  <text x="410" y="178" text-anchor="end" class="t-small t-ok t-b">lỗi trên tập train</text>
+  <text x="128" y="228" text-anchor="middle" class="t-small t-min t-b">underfitting</text>
+  <text x="308" y="228" text-anchor="middle" class="t-small t-min t-b">overfitting</text>
+  <text x="420" y="252" text-anchor="end" class="t-small t-muted">độ phức tạp của lớp giả thuyết →</text>
+</svg>
+<figcaption><b>Đường cong kinh điển.</b> Lỗi train luôn giảm khi mô hình phức tạp hơn, vì mô hình ngày càng khớp tốt dữ liệu đã thấy. Lỗi test giảm rồi tăng trở lại. Bên trái là <em>underfitting</em> (chưa khớp đủ): sai số xấp xỉ chiếm ưu thế. Bên phải là <em>overfitting</em> (quá khớp): mô hình học cả nhiễu, sai số ước lượng chiếm ưu thế.</figcaption>
+</figure>
+
+<h3>Kiểm soát độ phức tạp</h3>
+<p>Ta có ba “núm vặn” chính để giữ mô hình ở vùng vừa đủ:</p>
+<ol>
+<li><b>Giảm số đặc trưng</b> (số chiều \(d\)): bỏ bớt template, chỉ giữ đặc trưng có ích.</li>
+<li><b>Giữ trọng số nhỏ: regularization.</b> Ta phạt độ lớn của \(w\) ngay trong mục tiêu:
+\[\min_w\ \text{TrainLoss}(w) + \frac{\lambda}{2}\|w\|^2.\]
+Ở đây \(\|w\|^2 = w_1^2 + \dots + w_d^2\) là bình phương độ dài vector \(w\), còn \(\lambda \ge 0\) quyết định mức phạt. Trọng số nhỏ nghĩa là đầu ra không thay đổi đột ngột khi \(x\) thay đổi chút ít, tức là một hàm “mượt”, khó học nhiễu. Gradient của số hạng phạt là \(\lambda w\), nên mỗi bước có thêm \(w \leftarrow w - \eta\lambda w\): mọi trọng số bị kéo nhẹ về 0. Vì vậy kỹ thuật này còn có tên <em>weight decay</em>.</li>
+<li><b>Dừng sớm</b> (<span class="en">early stopping</span>): chạy ít vòng gradient descent hơn. Bắt đầu từ \(w = 0\), mỗi bước chỉ đi được một đoạn, nên dừng sớm cũng giữ \(w\) nhỏ.</li>
+</ol>
+
+<div class="box pitfall"><div class="box-h">Dễ nhầm</div>
+<p>TrainLoss thấp <b>không</b> chứng minh mô hình tốt. Thấp quá mức thậm chí còn là dấu hiệu đáng ngờ. Chỉ lỗi trên dữ liệu chưa thấy mới nói lên khả năng tổng quát hóa.</p>
+</div>
+
+<h2 id="best-practices"><span class="sec">3</span>Thực hành tốt: train, validation, test</h2>
+<p>Những thứ như \(\eta\), \(\lambda\), số lớp, số vòng lặp hay tập đặc trưng không được học bằng gradient. Chúng là <dfn>siêu tham số</dfn> (<span class="en">hyperparameters</span>) do ta chọn. Chọn bằng cách nào? Nếu thử nhiều giá trị rồi chọn cái cho lỗi <em>test</em> thấp nhất, thì tập test đã bị dùng để “học”. Con số trên test không còn là ước lượng trung thực cho dữ liệu tương lai nữa.</p>
+
+<figure class="fig">
+<svg viewBox="0 0 600 124" role="img" aria-label="Chia dữ liệu thành train, validation, test">
+  <rect x="20" y="24" width="330" height="44" rx="8" class="nd-acc"/><text x="185" y="51" text-anchor="middle" class="t-b">Train (~70%): học w</text>
+  <rect x="358" y="24" width="120" height="44" rx="8" class="nd-ch"/><text x="418" y="51" text-anchor="middle" class="t-b">Validation</text>
+  <rect x="486" y="24" width="94" height="44" rx="8" class="nd-min"/><text x="533" y="51" text-anchor="middle" class="t-b">Test</text>
+  <text x="185" y="92" text-anchor="middle" class="t-small t-muted">gradient descent chạy ở đây</text>
+  <text x="418" y="92" text-anchor="middle" class="t-small t-muted">chọn siêu tham số</text>
+  <text x="533" y="92" text-anchor="middle" class="t-small t-muted">chấm điểm</text><text x="533" y="108" text-anchor="middle" class="t-small t-muted">một lần cuối</text>
+</svg>
+<figcaption><b>Ba phần dữ liệu, ba vai trò.</b> Tập <em>validation</em> (còn gọi là <em>dev</em>) thay cho test trong lúc ta thử nghiệm và chọn siêu tham số. Tập <em>test</em> chỉ được mở ra một lần ở cuối để báo cáo kết quả.</figcaption>
+</figure>
+
+<p>Quy trình làm việc chuẩn là một vòng lặp: chọn siêu tham số → huấn luyện trên train → đo trên validation → điều chỉnh → lặp lại. Khi đã hài lòng, chạy đúng một lần trên test. Nếu dữ liệu ít, có thể dùng <dfn>cross-validation</dfn> (kiểm chứng chéo \(k\) phần). Chia dữ liệu thành \(k\) phần, lần lượt lấy mỗi phần làm validation và huấn luyện trên các phần còn lại, rồi lấy trung bình \(k\) kết quả. Mỗi ví dụ đều được dùng cho cả học lẫn đánh giá, nhưng không bao giờ cùng một lúc.</p>
+<p>Một số lời khuyên thực tế: bắt đầu từ mô hình đơn giản làm mốc so sánh (<span class="en">baseline</span>), theo dõi cả lỗi train lẫn lỗi validation, và cẩn thận với rò rỉ dữ liệu (<span class="en">data leakage</span>), tức là khi thông tin từ đáp án vô tình lọt vào đặc trưng.</p>
+
+<details class="quiz"><summary>Tự kiểm tra: lỗi train 2%, lỗi validation 25%. Mô hình đang gặp vấn đề gì, nên làm gì?</summary><div class="ans"><p>Khoảng cách lớn giữa train và validation là dấu hiệu <b>overfitting</b>. Nên giảm độ phức tạp (bớt đặc trưng, tăng \(\lambda\), dừng sớm) hoặc thu thập thêm dữ liệu. Ngược lại, nếu cả hai đều cao (ví dụ 30% và 32%) thì đó là <b>underfitting</b>, và cần mô hình giàu hơn.</p></div></details>
+
+<h2 id="kmeans"><span class="sec">4</span>K-means: học khi không có đáp án</h2>
+
+<div class="box problem"><div class="box-h">Bài toán</div>
+<p>Một cửa hàng có dữ liệu mua sắm của hàng nghìn khách, nhưng không ai gắn nhãn “khách sinh viên”, “khách gia đình”… Họ muốn tự động chia khách thành vài <em>nhóm có hành vi giống nhau</em> để thiết kế khuyến mãi. Không có \(y\), nên mọi thứ ta học từ đầu chương (loss so với đáp án) đều không dùng được.</p>
+</div>
+
+<p>Đây là <dfn>học không giám sát</dfn> (<span class="en">unsupervised learning</span>). Bài toán cụ thể ở đây là <dfn>phân cụm</dfn> (<span class="en">clustering</span>): chia các điểm \(\phi(x_1), \dots, \phi(x_n)\) thành \(K\) cụm sao cho các điểm trong cùng một cụm gần nhau.</p>
+
+<h3>Mô hình và hàm mục tiêu</h3>
+<p>Mỗi cụm \(k\) được đại diện bởi một <dfn>tâm cụm</dfn> (<span class="en">centroid</span>) \(\mu_k\), là một điểm trong cùng không gian với dữ liệu. Mỗi điểm \(i\) được gán vào một cụm \(z_i \in \{1, \dots, K\}\). Một cách phân cụm tốt là cách mà mỗi điểm nằm gần tâm cụm của mình. Ta đo điều đó bằng:</p>
+\[\text{Loss}_{\text{kmeans}}(z, \mu) = \sum_{i=1}^n \big\|\phi(x_i) - \mu_{z_i}\big\|^2.\]
+<p>Biểu thức \(\|a - b\|^2\) là bình phương khoảng cách giữa hai điểm, ví dụ \((a_1-b_1)^2 + (a_2-b_2)^2\) trong mặt phẳng. Ta cần tìm đồng thời cả \(z\) (ai thuộc cụm nào) lẫn \(\mu\) (tâm ở đâu).</p>
+
+<h3>Ý tưởng: luân phiên giải hai bài dễ</h3>
+<p>Tìm cả \(z\) và \(\mu\) cùng lúc thì khó. Nhưng nếu <em>cố định một thứ</em>, thứ còn lại lại rất dễ:</p>
+<ul>
+<li>Nếu đã biết các tâm \(\mu\), cách gán tốt nhất là cho mỗi điểm về <b>tâm gần nhất</b>. Hiển nhiên, vì mỗi điểm chỉ đóng góp khoảng cách tới tâm của chính nó.</li>
+<li>Nếu đã biết phân nhóm \(z\), vị trí tốt nhất của mỗi tâm là <b>trung bình cộng</b> các điểm trong cụm.</li>
+</ul>
+<div class="box math"><div class="box-h">Toán nền · Vì sao trung bình là tâm tốt nhất?</div>
+<p>Xét một chiều với các điểm \(a_1, \dots, a_m\), cần chọn \(\mu\) để \(\sum_j (a_j - \mu)^2\) nhỏ nhất. Đạo hàm theo \(\mu\) là \(-2\sum_j (a_j - \mu)\). Đặt bằng 0 cho \(\sum_j a_j = m\mu\), tức là \(\mu = \frac1m\sum_j a_j\), chính là trung bình cộng. Nhiều chiều thì áp dụng riêng cho từng tọa độ.</p>
+</div>
+
+<div class="algo"><div class="algo-h">Thuật toán k-means <small>luân phiên tối ưu</small></div>
+<pre><code>khởi tạo K tâm μ₁…μ_K (ví dụ chọn ngẫu nhiên K điểm dữ liệu)
+lặp cho đến khi phép gán không đổi:
+    Bước 1 (gán):      z_i ← cụm k có μ_k gần φ(x_i) nhất     <span class="c"># cố định μ, tối ưu z</span>
+    Bước 2 (cập nhật): μ_k ← trung bình các φ(x_i) có z_i = k  <span class="c"># cố định z, tối ưu μ</span></code></pre></div>
+
+<div class="box example"><div class="box-h">Ví dụ · Tính tay trên trục số</div>
+<p>Bốn điểm \(0, 2, 10, 12\); \(K = 2\); khởi tạo \(\mu_1 = 0\), \(\mu_2 = 2\).</p>
+<div class="tbl-wrap" style="margin:.6rem 0"><table class="tbl">
+<tr><th>Vòng</th><th>Bước gán (điểm → cụm)</th><th>Bước cập nhật tâm</th><th class="n">Loss sau cập nhật</th></tr>
+<tr><td>1</td><td>0→1; 2→2; 10→2; 12→2 (2, 10, 12 đều gần μ₂=2 hơn μ₁=0)</td><td>μ₁ = 0; μ₂ = (2+10+12)/3 = 8</td><td class="n">0 + 36 + 4 + 16 = 56</td></tr>
+<tr><td>2</td><td>0→1; <b>2→1</b> (cách 0 là 2, cách 8 là 6); 10→2; 12→2</td><td>μ₁ = (0+2)/2 = 1; μ₂ = (10+12)/2 = 11</td><td class="n">1 + 1 + 1 + 1 = 4</td></tr>
+<tr class="good"><td>3</td><td>không điểm nào đổi cụm</td><td>tâm giữ nguyên → <b>dừng</b></td><td class="n">4</td></tr>
+</table></div>
+<p>Điểm 2 ban đầu bị “kéo” sang cụm phải vì tâm khởi tạo rơi đúng chỗ nó. Khi tâm 2 dời sang 8, điểm 2 nhận ra mình gần tâm 1 hơn và đổi cụm. Kết quả cuối là hai cụm tự nhiên {0, 2} và {10, 12}.</p>
+</div>
+
+<p>Mô phỏng 2D dưới đây có 11 điểm thuộc ba nhóm. Hai trong ba tâm được khởi tạo cố tình nằm chung một nhóm (góc trái dưới). Hãy theo dõi tâm cụm “trôi” dần về đúng chỗ qua các vòng gán và cập nhật:</p>
+
+<div class="sim" data-sim="kmeans"><script type="application/json">{"title":"K-means với K = 3","sub":"Mỗi bước là một nửa vòng: gán, rồi cập nhật","points":[[1,2],[2,1],[2,3],[3,2],[6,6],[7,5],[8,6],[7,7],[7,1],[8,2],[9,1]],"init":[[1,2],[2,1],[8,6]],"xr":[0,10],"yr":[0,8]}</script></div>
+
+<h3>Đặc điểm và giới hạn</h3>
+<ul>
+<li><b>Luôn dừng.</b> Mỗi bước (gán hoặc cập nhật) đều không làm loss tăng, và số cách gán là hữu hạn. Vì vậy thuật toán không thể lặp mãi.</li>
+<li><b>Chỉ đạt cực tiểu địa phương.</b> Kết quả phụ thuộc vào tâm khởi tạo. Khởi tạo xấu có thể cho ra cụm vô lý. Cách khắc phục là chạy nhiều lần với khởi tạo ngẫu nhiên khác nhau rồi giữ lần có loss nhỏ nhất, hoặc dùng <em>k-means++</em> (chọn các tâm ban đầu xa nhau).</li>
+<li><b>Phải chọn \(K\) trước.</b> Tăng \(K\) luôn làm loss giảm: với \(K = n\), loss bằng 0. Vì vậy không thể chọn \(K\) chỉ bằng cách nhìn loss.</li>
+<li><b>Chi phí</b> mỗi vòng là \(O(nKd)\): mỗi điểm so với \(K\) tâm, mỗi phép so tốn \(d\) phép tính.</li>
+</ul>
+
+<div class="compare">
+<div><h4>Học có giám sát (bài 1.1–1.2)</h4><p>Dữ liệu \((x, y)\) có đáp án. Loss so dự đoán với đáp án. Mục tiêu là dự đoán \(y\) cho \(x\) mới.</p></div>
+<div><h4>K-means (không giám sát)</h4><p>Chỉ có \(x\). Loss đo độ “gọn” của các cụm. Mục tiêu là khám phá cấu trúc ẩn. Cách tối ưu cũng khác: luân phiên thay cho gradient descent.</p></div>
+</div>
+
+<div class="box recap"><div class="box-h">Tổng kết chương 1</div>
+<p>Học máy = <b>lớp giả thuyết</b> + <b>loss</b> + <b>tối ưu</b>, và tiêu chuẩn cuối cùng là <b>tổng quát hóa</b> trên dữ liệu chưa thấy. Mở rộng lớp giả thuyết (đặc trưng, mạng sâu) giúp giảm sai số xấp xỉ nhưng dễ overfitting. Regularization, dừng sớm và quy trình train/validation/test là cách giữ cân bằng. Khi không có nhãn, k-means vẫn tìm được cấu trúc bằng cách tối ưu luân phiên.</p>
+</div>
+
+<div class="box link"><div class="box-h">Chương tiếp theo</div>
+<p>Mọi mô hình trong chương 1 đều là “phản xạ”: nhận \(x\), tính một lần, trả \(\hat y\). Nhưng nhiều bài toán đòi hỏi một <em>chuỗi</em> quyết định nối tiếp nhau, như tìm đường hay giải đố, và mỗi quyết định ảnh hưởng tới các lựa chọn sau. Chương 2 chuyển sang <b>mô hình trạng thái</b>, bắt đầu với bài toán tìm kiếm.</p>
+</div>
+
+<p class="src">Nguồn: Stanford CS221 Spring 2025 — <a href="https://stanford-cs221.github.io/spring2025/modules/">Machine Learning 3</a> (differentiable programming, generalization, best practices, k-means); slide “Differentiable Programming &amp; Machine Learning 3” của lớp.</p>
+
+</article></main></div>
+</body></html>
