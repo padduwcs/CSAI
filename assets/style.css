@@ -167,6 +167,18 @@ svg g.t-ok text{fill:var(--ok)} svg g.t-min text{fill:var(--min)} svg g.t-max te
 svg g.t-small text{font-size:11px} svg g.t-b text{font-weight:600}
 svg g.f-ink circle,svg g.f-ink rect{fill:var(--ink-2)}
 svg .arrow-head{fill:var(--ink-2)}
+/* bổ sung cho các hình minh họa */
+svg .t-violet{fill:var(--violet)} svg .t-teal{fill:var(--teal)} svg .t-ink2{fill:var(--ink-2)} svg .t-mono{font-family:var(--mono)}
+svg g.t-violet text{fill:var(--violet)}
+svg .ln-violet{stroke:var(--violet);stroke-width:2;fill:none} svg .ln-ch{stroke:var(--chance);stroke-width:2;fill:none}
+svg .ln-thin{stroke:var(--line-2);stroke-width:1;fill:none} svg .ln-faint{stroke:var(--line-2);stroke-width:1.4;fill:none;opacity:.7}
+svg .halo{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
+svg .z-ok{fill:var(--ok);fill-opacity:.11;stroke:none} svg .z-min{fill:var(--min);fill-opacity:.11;stroke:none}
+svg .z-acc{fill:var(--accent);fill-opacity:.1;stroke:none} svg .z-ch{fill:var(--chance);fill-opacity:.13;stroke:none}
+svg .z-violet{fill:var(--violet);fill-opacity:.1;stroke:none}
+svg .f-bg{fill:var(--surface)} svg .f-teal{fill:var(--teal)}
+svg .dim{opacity:.3}
+.box figure.fig{margin:1rem 0 .3rem;box-shadow:none}
 
 /* ---------- Bảng ---------- */
 .tbl-wrap{overflow-x:auto;margin:1.6rem 0}
