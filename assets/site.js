@@ -108,6 +108,21 @@
       content.append(pg);
     }
 
+    /* Dòng nguồn chỉ hiện khi in, ở cuối bản in: ghi rõ bản online và ngày in */
+    const ONLINE='https://padduwcs.github.io/CSAI/'+(location.pathname.split('/').pop()||'')+location.search.replace(/&in=1/,'');
+    const body=content||document.querySelector('.home');
+    if(body){
+      const srcLine=el('div',{class:'print-src'});body.append(srcLine);
+      const fill=()=>{srcLine.innerHTML=`In từ CSAI · Bản online: <a href="${ONLINE}">${ONLINE}</a> · Ngày in: ${new Date().toLocaleDateString('vi-VN')}`;};
+      fill();addEventListener('beforeprint',fill);
+    }
+
+    /* Trang chủ: nút in cả chương ở góc mỗi thẻ chương */
+    document.querySelectorAll('.road .ch').forEach((card,i)=>{
+      const a=el('a',{class:'icon-btn ch-print',href:`in-chuong.html?c=${i+1}&in=1`,target:'_blank',rel:'noopener',title:`In cả chương ${i+1}`,'aria-label':`In toàn bộ chương ${i+1}`},ICON_PRINT);
+      card.append(a);
+    });
+
     /* Hình nhỏ không bị phóng quá cỡ: tối đa ~1.35 lần kích thước thiết kế */
     document.querySelectorAll('figure.fig svg[viewBox]').forEach(s=>{const vb=s.getAttribute('viewBox').split(/[\s,]+/).map(Number);if(vb[2])s.style.maxWidth=Math.round(vb[2]*1.35)+'px';});
 

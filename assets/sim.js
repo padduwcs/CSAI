@@ -411,11 +411,13 @@ function kmeansSim(root,cfg){
 }
 
 const REG={graph:graphSim,traverse:traverseSim,game:gameSim,vi:viSim,gd:gdSim,kmeans:kmeansSim};
-document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('.sim[data-sim]').forEach(root=>{
+function initSims(scope){
+  scope.querySelectorAll('.sim[data-sim]').forEach(root=>{
     const sc=root.querySelector('script[type="application/json"]');
     try{const cfg=sc?JSON.parse(sc.textContent):{};REG[root.dataset.sim](root,cfg);}
     catch(e){console.error(e);root.insertAdjacentHTML('beforeend','<p class="sim-note">Không tải được mô phỏng: '+esc(e.message)+'</p>');}
   });
-});
+}
+window.CSAI_initSims=initSims;  /* trang in cả chương gọi lại sau khi ghép bài */
+document.addEventListener('DOMContentLoaded',()=>initSims(document));
 })();
