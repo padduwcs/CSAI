@@ -33,15 +33,23 @@
     const hasSide=!!document.getElementById('sidebar');
     const ICON_SIDE='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><line x1="9.5" y1="4.5" x2="9.5" y2="19.5"/></svg>';
     const ICON_THEME='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" style="fill:currentColor"/></svg>';
+    const ICON_PRINT='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><rect x="7" y="14" width="10" height="6"/></svg>';
     const top=el('header',{class:'topbar'});
     top.innerHTML=`<a class="skip" href="#main">Đến nội dung</a>
       ${hasSide?`<button class="icon-btn side-btn" type="button" aria-controls="sidebar" title="Ẩn/hiện mục lục (phím [ )">${ICON_SIDE}</button>`:''}
       <a class="brand" href="index.html">CSAI</a>
       <span class="crumb">${lesson?(lesson.num+' · '+lesson.title):'Cơ sở Trí tuệ nhân tạo · theo Stanford CS221'}</span>
       <span class="spacer"></span>
+      <button class="icon-btn print-btn" type="button" title="In bài (Ctrl+P)" aria-label="In nội dung trang">${ICON_PRINT}</button>
       <button class="icon-btn theme-btn" type="button" title="Giao diện sáng/tối" aria-label="Đổi giao diện sáng/tối">${ICON_THEME}</button>
       <div class="progress"></div>`;
     document.body.prepend(top);
+
+    /* In: luôn in bằng giao diện sáng, xong thì trả lại giao diện đang dùng */
+    top.querySelector('.print-btn').addEventListener('click',()=>window.print());
+    let themeBeforePrint=null;
+    addEventListener('beforeprint',()=>{const r=document.documentElement;if(themeBeforePrint===null)themeBeforePrint=r.dataset.theme||'';r.dataset.theme='light';});
+    addEventListener('afterprint',()=>{if(themeBeforePrint===null)return;const r=document.documentElement;if(themeBeforePrint)r.dataset.theme=themeBeforePrint;else delete r.dataset.theme;themeBeforePrint=null;});
 
     top.querySelector('.theme-btn').addEventListener('click',()=>{
       const dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);

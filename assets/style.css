@@ -386,10 +386,19 @@ h1,h2,h3{text-wrap:balance}
   .home{padding:40px 18px 70px}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+@page{margin:16mm 14mm}
 @media print{
-  .topbar,.sidebar,.pager,.sim-ctl{display:none!important}
-  .layout{display:block}
+  .topbar,.sidebar,.pager,.sim-ctl,.skip{display:none!important}
+  .layout,body.nav-hidden .layout{display:block}
   main.page{padding:0}
-  body{background:#fff;font-size:11pt}
-  .box,.fig,.sim,.tbl-wrap,pre{break-inside:avoid}
+  .content{max-width:none}
+  html,body{background:#fff}
+  body{font-size:11pt;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  a{color:inherit;text-decoration:none}
+  h2{margin-top:1.8rem}
+  h2,h3,h4{break-after:avoid}
+  p{orphans:3;widows:3}
+  .box,.fig,.sim,.tbl-wrap,pre,.algo,.compare{break-inside:avoid}
+  figure.fig,.sim{box-shadow:none}
+  figure.fig svg{max-width:100%!important}
 }
