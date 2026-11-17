@@ -84,6 +84,34 @@ document.addEventListener('DOMContentLoaded',async()=>{
 
   if(q.get('in')==='1'){
     try{await document.fonts.ready;}catch(e){}
+    await paginate();
     setTimeout(()=>window.print(),400);
   }
 });
+
+/* Bản in (&in=1): dùng Paged.js chia nội dung thành trang A4 ngay trong trình duyệt, để đánh số trang
+   và điền số trang vào mục lục (target-counter). Lỗi thì giữ trang như cũ và in bình thường. */
+async function paginate(){
+  const note=document.createElement('div');
+  note.textContent='Đang dàn trang và đánh số trang để in…';
+  note.style.cssText='position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:99;padding:8px 14px;border-radius:8px;background:#222;color:#fff;font:14px/1.4 Inter,system-ui,sans-serif';
+  document.body.append(note);
+  const layout=document.querySelector('.layout'),css=document.querySelector('link[rel="stylesheet"][href$="assets/style.css"]');
+  try{
+    await new Promise((ok,fail)=>{const s=document.createElement('script');s.src='assets/vendor/pagedjs/paged.js';s.onload=ok;s.onerror=fail;document.head.append(s);});
+    document.documentElement.dataset.theme='light';
+    document.querySelectorAll('details').forEach(d=>d.open=true);
+    const tpl=document.createElement('template');
+    tpl.innerHTML=document.querySelector('article.content').outerHTML;
+    const out=document.createElement('div');
+    layout.replaceWith(out);
+    css.remove();  /* Paged.js nạp lại style.css, áp các luật @media print và @page lúc dàn trang */
+    await new window.Paged.Previewer().preview(tpl.content,[css.href],out);
+  }catch(e){
+    console.error('Không dàn trang được:',e);
+    document.querySelectorAll('[data-pagedjs-inserted-styles]').forEach(s=>s.remove());
+    if(!css.isConnected)document.head.append(css);
+    if(!layout.isConnected){document.body.querySelectorAll(':scope>div:not(.topbar)').forEach(d=>d.remove());document.body.append(layout);}
+  }
+  note.remove();
+}

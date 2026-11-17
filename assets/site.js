@@ -34,21 +34,24 @@
     const ICON_SIDE='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><line x1="9.5" y1="4.5" x2="9.5" y2="19.5"/></svg>';
     const ICON_THEME='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" style="fill:currentColor"/></svg>';
     const ICON_PRINT='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><rect x="7" y="14" width="10" height="6"/></svg>';
+    /* Trang chủ và trang cả chương: nút in mở bản in riêng (&in=1), nơi trang được dàn và đánh số để mục lục có số trang */
+    const qs=new URLSearchParams(location.search);
+    const printLink=pageId==='home'?'chuong.html?c=all&amp;in=1':(pageId==='chapter'&&qs.get('in')!=='1'&&qs.get('c')?`chuong.html?c=${encodeURIComponent(qs.get('c'))}&amp;in=1`:'');
     const top=el('header',{class:'topbar'});
     top.innerHTML=`<a class="skip" href="#main">Đến nội dung</a>
       ${hasSide?`<button class="icon-btn side-btn" type="button" aria-controls="sidebar" title="Ẩn/hiện mục lục (phím [ )">${ICON_SIDE}</button>`:''}
       <a class="brand" href="index.html">CSAI</a>
       <span class="crumb">${lesson?(lesson.num+' · '+lesson.title):'Cơ sở Trí tuệ nhân tạo · theo Stanford CS221'}</span>
       <span class="spacer"></span>
-      ${pageId==='home'
-        ?`<a class="icon-btn print-btn" href="chuong.html?c=all&amp;in=1" target="_blank" rel="noopener" title="In toàn bộ khóa học" aria-label="In toàn bộ các chương">${ICON_PRINT}</a>`
-        :`<button class="icon-btn print-btn" type="button" title="${pageId==='chapter'?'In cả trang (có mục lục)':'In bài (Ctrl+P)'}" aria-label="In nội dung trang">${ICON_PRINT}</button>`}
+      ${printLink
+        ?`<a class="icon-btn print-btn" href="${printLink}" target="_blank" rel="noopener" title="${pageId==='home'?'In toàn bộ khóa học':'In cả trang (có mục lục, đánh số trang)'}" aria-label="In nội dung">${ICON_PRINT}</a>`
+        :`<button class="icon-btn print-btn" type="button" title="In bài (Ctrl+P)" aria-label="In nội dung trang">${ICON_PRINT}</button>`}
       <button class="icon-btn theme-btn" type="button" title="Giao diện sáng/tối" aria-label="Đổi giao diện sáng/tối">${ICON_THEME}</button>
       <div class="progress"></div>`;
     document.body.prepend(top);
 
     /* In: luôn in bằng giao diện sáng, xong thì trả lại giao diện đang dùng */
-    if(pageId!=='home')top.querySelector('.print-btn').addEventListener('click',()=>window.print());  /* trang chủ: nút là liên kết mở bản in cả khóa */
+    if(!printLink)top.querySelector('.print-btn').addEventListener('click',()=>window.print());
     let themeBeforePrint=null;
     /* In: mở sẵn mọi câu hỏi tự kiểm tra (giấy không bấm được), in xong đóng lại những câu vốn đang đóng */
     let quizOpened=null;

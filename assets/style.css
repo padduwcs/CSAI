@@ -422,7 +422,12 @@ h1,h2,h3{text-wrap:balance}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
 .print-src{display:none}
-@page{margin:11mm 12mm}
+@page{size:A4;margin:11mm 12mm 14mm;
+  @bottom-center{content:counter(page);font-family:Inter,system-ui,sans-serif;font-size:8.5pt;color:#8a8a8a}}
+@page:first{@bottom-center{content:none}}
+/* số trang trong mục lục: chỉ có ở bản in dàn trang bằng Paged.js (trình duyệt thường bỏ qua target-counter) */
+.print-toc .pt-ch a,.print-toc .pt-lesson>a,.print-toc .pt-secs a{display:flex;align-items:baseline;gap:.6em}
+.print-toc a::after{content:target-counter(attr(href),page);margin-left:auto;font-family:var(--sans);font-weight:400;font-variant-numeric:tabular-nums;color:var(--muted)}
 @media print{
   .topbar,.sidebar,.pager,.sim-ctl,.skip,.ch-print,.ch-status{display:none!important}
   .ch-lesson{margin-top:1.2rem;padding-top:.8rem}
