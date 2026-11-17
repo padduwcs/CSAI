@@ -46,14 +46,15 @@
 <p>Luật chơi giữ nguyên, nhưng ba giả định cho ba đáp án khác nhau. Toàn bộ chương này xoay quanh câu hỏi: <em>mô hình hóa đối thủ thế nào, và khi đó tính giá trị ra sao</em>.</p>
 
 <h2 id="modeling"><span class="sec">2</span>Mô hình hóa trò chơi</h2>
-<p>Ta xét loại trò chơi đơn giản nhất: <b>hai người</b>, <b>đi lần lượt</b>, <b>thông tin đầy đủ</b> (ai cũng thấy hết trạng thái), và <b>tổng bằng 0</b> (<span class="en">zero-sum</span>: bên này được bao nhiêu thì bên kia mất bấy nhiêu). Ta gọi mình là <b>agent</b> (người chơi MAX) và đối thủ là <b>opp</b> (người chơi MIN). Một trò chơi gồm:</p>
+<p>Muốn tính được những con số như trên cho các trò chơi lớn hơn, ta cần mô tả trò chơi một cách chính xác, như chương 2 và 3 đã làm với bài toán tìm kiếm và MDP. Ta xét loại trò chơi đơn giản nhất: <b>hai người</b>, <b>đi lần lượt</b>, <b>thông tin đầy đủ</b> (ai cũng thấy hết trạng thái), và <b>tổng bằng 0</b> (<span class="en">zero-sum</span>: bên này được bao nhiêu thì bên kia mất bấy nhiêu). Ta gọi mình là <b>agent</b> (người chơi MAX) và đối thủ là <b>opp</b> (người chơi MIN). Một trò chơi gồm:</p>
 <div class="tbl-wrap"><table class="tbl">
 <tr><th>Thành phần</th><th>Ý nghĩa</th><th>So với tìm kiếm / MDP</th></tr>
 <tr><td>\(s_{\text{start}}\), \(\text{Actions}(s)\), \(\text{Succ}(s,a)\), \(\text{IsEnd}(s)\)</td><td>như tìm kiếm</td><td>giống</td></tr>
 <tr><td>\(\text{Utility}(s)\)</td><td>điểm của agent ở trạng thái kết thúc</td><td>thay cho phần thưởng từng bước: chỉ chấm điểm khi ván kết thúc</td></tr>
 <tr><td>\(\text{Player}(s)\)</td><td>ai được đi ở trạng thái \(s\)</td><td><b>mới</b></td></tr>
 </table></div>
-<p>Vì tổng bằng 0, utility của đối thủ là \(-\text{Utility}(s)\). Ta chỉ cần ghi một con số theo góc nhìn của agent. Agent muốn nó lớn, đối thủ muốn nó nhỏ. Chính sách của người chơi \(p\) có thể tất định, \(\pi_p(s) \in \text{Actions}(s)\), hoặc ngẫu nhiên, \(\pi_p(a\mid s)\) là xác suất chọn \(a\) ở \(s\).</p>
+<p>Utility vẫn mang nghĩa như chương 3: phần thưởng của cả ván. Chỉ khác là trò chơi chỉ trao thưởng khi ván kết thúc, nên utility của ván chính là \(\text{Utility}\) của trạng thái cuối. Vì tổng bằng 0, utility của đối thủ là \(-\text{Utility}(s)\), nên ta chỉ cần ghi một con số theo góc nhìn của agent: agent muốn nó lớn, đối thủ muốn nó nhỏ.</p>
+<p>Chính sách của người chơi \(p\) có thể tất định, \(\pi_p(s) \in \text{Actions}(s)\), hoặc ngẫu nhiên, \(\pi_p(a\mid s)\) là xác suất chọn \(a\) ở \(s\). Dạng ngẫu nhiên cần thiết vì hai lẽ: ta thường chỉ đoán được <em>khả năng</em> đối thủ đi nước nào (như giả định “chọn ngẫu nhiên” ở trò ba thùng), và bài 4.2 sẽ cho thấy có lúc chính ta cũng nên chơi ngẫu nhiên.</p>
 
 <p>Các diễn biến có thể xảy ra được vẽ thành <dfn>cây trò chơi</dfn> (<span class="en">game tree</span>). Mỗi tầng xen kẽ lượt hai bên. Quy ước ký hiệu dùng xuyên suốt chương:</p>
 
@@ -90,7 +91,7 @@
 </figure>
 
 <h2 id="game-eval"><span class="sec">3</span>Game evaluation: chấm điểm khi biết cả hai chính sách</h2>
-<p>Bắt đầu từ trường hợp dễ nhất: <b>biết hết</b> cách chơi của cả hai bên. Khi đó không ai “quyết định” gì nữa, cây trò chơi chỉ còn là một quá trình ngẫu nhiên. Giá trị kỳ vọng tính từ lá lên, giống hệt đánh giá chính sách ở chương 3:</p>
+<p>Bắt đầu từ trường hợp dễ nhất: <b>biết hết</b> cách chơi của cả hai bên. Khi đó không ai “quyết định” gì nữa, cây trò chơi chỉ còn là một quá trình ngẫu nhiên, và giá trị của nó là utility kỳ vọng, tính từ lá lên, giống hệt đánh giá chính sách ở chương 3. Trường hợp này chưa giúp ra quyết định, nhưng là điểm xuất phát: các thuật toán phía sau đều có được bằng cách thay một trong hai tổng dưới đây bằng \(\max\) hoặc \(\min\).</p>
 \[V_{\text{eval}}(s) = \begin{cases} \text{Utility}(s) & \text{IsEnd}(s) \\ \sum_a \pi_{\text{agent}}(a\mid s)\, V_{\text{eval}}(\text{Succ}(s,a)) & \text{Player}(s) = \text{agent} \\ \sum_a \pi_{\text{opp}}(a\mid s)\, V_{\text{eval}}(\text{Succ}(s,a)) & \text{Player}(s) = \text{opp.} \end{cases}\]
 <div class="box example"><div class="box-h">Ví dụ</div>
 <p>Agent luôn chọn A. Đối thủ chọn ngẫu nhiên đều. \(V_{\text{eval}} = 1\cdot\big(\tfrac12(-50) + \tfrac12(50)\big) = 0\). Không ai tối ưu gì cả: đây chỉ là chấm điểm một cặp chính sách cho trước.</p>
@@ -106,7 +107,7 @@
 <h2 id="expectimax"><span class="sec">4</span>Expectimax: tối ưu khi biết đối thủ chơi thế nào</h2>
 <p>Giờ agent được <em>tự chọn</em>, còn đối thủ vẫn theo một chính sách ngẫu nhiên đã biết \(\pi_{\text{opp}}\). Giống bước từ đánh giá chính sách sang value iteration, ta thay tổng theo \(\pi_{\text{agent}}\) bằng \(\max\):</p>
 \[V_{\text{exptmax}}(s) = \begin{cases} \text{Utility}(s) & \text{IsEnd}(s) \\ \max\limits_{a} V_{\text{exptmax}}(\text{Succ}(s,a)) & \text{Player}(s) = \text{agent} \\ \sum_a \pi_{\text{opp}}(a\mid s)\, V_{\text{exptmax}}(\text{Succ}(s,a)) & \text{Player}(s) = \text{opp.} \end{cases}\]
-<p>Thực chất đây là một MDP, trong đó đối thủ đóng vai “tự nhiên”. Với đối thủ chọn đều, các thùng có giá trị 0, 2, 5. Agent chọn C, giá trị 5.</p>
+<p>Thực chất đây là một MDP, trong đó đối thủ đóng vai “tự nhiên”: nút của agent là nút trạng thái (lấy \(\max\), như value iteration), nút của đối thủ là nút cơ hội (lấy kỳ vọng). Với đối thủ chọn đều, các thùng có giá trị 0, 2, 5. Agent chọn C, giá trị 5.</p>
 
 <h2 id="minimax"><span class="sec">5</span>Minimax: chuẩn bị cho tình huống xấu nhất</h2>
 
@@ -137,7 +138,7 @@
 </figure>
 
 <h3>Minimax đảm bảo được gì?</h3>
-<p>Ký hiệu \(\pi_{\max}\), \(\pi_{\min}\) là chính sách minimax của agent và đối thủ, \(\pi_{7}\) là đối thủ chọn ngẫu nhiên đều (một đối thủ “bình thường”), và \(\pi_{\text{exptmax}(7)}\) là chính sách expectimax của agent khi tin đối thủ là \(\pi_7\). Ta tính giá trị của bốn tổ hợp trên trò ba thùng:</p>
+<p>Minimax mang giả định bi quan nhất. Giả định đó cho ta được gì, và khiến ta mất gì? Ký hiệu \(\pi_{\max}\), \(\pi_{\min}\) là chính sách minimax của agent và đối thủ, \(\pi_{7}\) là đối thủ chọn ngẫu nhiên đều (một đối thủ “bình thường”), và \(\pi_{\text{exptmax}(7)}\) là chính sách expectimax của agent khi tin đối thủ là \(\pi_7\). Ta tính giá trị của bốn tổ hợp trên trò ba thùng:</p>
 <div class="tbl-wrap"><table class="tbl">
 <tr><th>Agent \ Đối thủ</th><th class="n">\(\pi_{\min}\) (luôn chọn số nhỏ)</th><th class="n">\(\pi_7\) (ngẫu nhiên đều)</th></tr>
 <tr><td>\(\pi_{\max}\) (chọn B)</td><td class="n"><b>1</b></td><td class="n">2</td></tr>

@@ -24,6 +24,7 @@
 </header>
 
 <h2 id="expectiminimax"><span class="sec">1</span>Expectiminimax: đối thủ cộng thêm may rủi</h2>
+<p>Bài 4.1 xử lý riêng từng nguồn bất định: may rủi (expectimax lấy kỳ vọng) và đối thủ (minimax lấy \(\min\)). Nhiều trò chơi thật có cả hai, như cờ thỏ cáo (backgammon) vừa tung xúc xắc vừa có đối thủ. Ta bắt đầu bằng việc ghép hai phép tính đó lại.</p>
 
 <div class="box problem"><div class="box-h">Trò ba thùng có thêm đồng xu (ví dụ của lớp)</div>
 <p>Sau khi bạn chọn thùng, một đồng xu được tung. <b>Sấp</b> (xác suất 0.5): giữ nguyên thùng đã chọn. <b>Ngửa</b> (0.5): chuyển sang thùng <em>bên trái</em>, quay vòng (A → C, B → A, C → B). Sau đó đối thủ chọn số nhỏ nhất trong thùng cuối cùng. Giờ nên chọn thùng nào?</p>
@@ -45,7 +46,7 @@
 <h2 id="eval-fn"><span class="sec">2</span>Hàm đánh giá: dừng sớm và ước lượng</h2>
 
 <div class="box problem"><div class="box-h">Bài toán</div>
-<p>Cờ vua có khoảng \(35^{100}\) nút. Minimax cần tới lá (hết ván) mới biết utility. Ta không thể đi tới lá, nhưng vẫn phải chọn nước đi trong vài giây.</p>
+<p>Mọi thuật toán đến giờ, có hay không có may rủi, đều phải đi tới lá (hết ván) mới biết utility. Cờ vua có khoảng \(35^{100}\) nút, nên không thể đi tới lá, nhưng vẫn phải chọn nước đi trong vài giây.</p>
 </div>
 <p><strong>Ý tưởng:</strong> chỉ nhìn trước \(d\) lượt, rồi dừng lại và <em>ước lượng</em> thế cờ bằng một <dfn>hàm đánh giá</dfn> \(\text{Eval}(s)\) (<span class="en">evaluation function</span>). Kỳ thủ cũng làm vậy: “tính tới đây thì thấy mình hơn một con xe, thế cờ tốt”. Minimax giới hạn độ sâu:</p>
 \[V_{\text{minmax}}(s, d) = \begin{cases} \text{Utility}(s) & \text{IsEnd}(s) \\ \text{Eval}(s) & d = 0 \\ \max_a V_{\text{minmax}}(\text{Succ}(s,a), d) & \text{Player}(s) = \text{agent} \\ \min_a V_{\text{minmax}}(\text{Succ}(s,a), d-1) & \text{Player}(s) = \text{opp.} \end{cases}\]
@@ -152,9 +153,9 @@ gọi: V(s_start, −∞, +∞)</code></pre></div>
 <div class="box problem"><div class="box-h">Bài toán</div>
 <p>Hàm đánh giá với các trọng số 9, 5, 3, 1 do con người đặt ra. Với trò chơi mới, hoặc trò mà con người không có kinh nghiệm rõ ràng, làm sao có được trọng số tốt? Ý tưởng là cho máy <em>tự chơi với chính nó</em> và rút kinh nghiệm.</p>
 </div>
-<p>Ta mô hình hóa \(V(s; w) = w\cdot\phi(s)\) và học \(w\) bằng ý tưởng giống SARSA và Q-learning (bài 3.2). Sau mỗi bước \((s, a, r, s')\), ta muốn dự đoán \(V(s; w)\) gần với mục tiêu “thưởng vừa nhận + giá trị ước lượng của trạng thái kế tiếp”:</p>
+<p>Một hàm đánh giá tốt chính là một ước lượng tốt của giá trị thế cờ. Vì vậy ta mô hình hóa \(V(s; w) = w\cdot\phi(s)\), học \(w\), rồi dùng \(V(s;w)\) làm Eval trong minimax giới hạn độ sâu. Cách học mượn ý tưởng bootstrapping của SARSA và Q-learning (bài 3.2): sau mỗi bước \((s, a, r, s')\), kéo dự đoán \(V(s; w)\) về gần mục tiêu “thưởng vừa nhận + giá trị ước lượng của trạng thái kế tiếp”:</p>
 \[w \leftarrow w - \eta\,\big[\underbrace{V(s;w)}_{\text{dự đoán}} - \underbrace{(r + \gamma\,V(s';w))}_{\text{mục tiêu}}\big]\,\nabla_w V(s;w), \qquad \nabla_w V(s;w) = \phi(s).\]
-<p>Chữ “TD” (<span class="en">temporal difference</span>, sai khác theo thời gian) chỉ hiệu số giữa hai ước lượng ở hai thời điểm liên tiếp. Nếu thế cờ sau tốt hơn ta tưởng, ước lượng thế cờ trước được kéo lên, và ngược lại.</p>
+<p>Chữ “TD” (<span class="en">temporal difference</span>, sai khác theo thời gian) chỉ hiệu số giữa hai ước lượng ở hai thời điểm liên tiếp. Nếu thế cờ sau tốt hơn ta tưởng, ước lượng thế cờ trước được kéo lên, và ngược lại. Trong trò chơi, \(r = 0\) ở mọi bước trừ bước kết thúc ván (khi đó \(r\) là Utility), và thường lấy \(\gamma = 1\).</p>
 
 <div class="box example"><div class="box-h">Ví dụ · Một bước cập nhật</div>
 <p>\(\phi(s) = [1, 2]\), \(w = [0, 1]\), nên \(V(s; w) = 2\). Nước đi tiếp theo kết thúc ván với utility \(r = 5\) (thắng), và \(V(\text{end}) = 0\). Mục tiêu \(= 5\), phần dư \(= 2 - 5 = -3\). Với \(\eta = 0.1\): \(w \leftarrow [0, 1] - 0.1\cdot(-3)\cdot[1, 2] = [0.3,\ 1.6]\). Dự đoán mới \(V(s) = 0.3 + 3.2 = 3.5\), đã nhích lại gần 5.</p>
@@ -174,6 +175,7 @@ gọi: V(s_start, −∞, +∞)</code></pre></div>
 <p>TD-Gammon (1992) dùng TD learning với mạng nơ-ron, chỉ tự chơi, và đạt trình độ ngang nhà vô địch cờ thỏ cáo (backgammon). Tiếp nối là AlphaGo/AlphaZero, kết hợp tìm kiếm (giống minimax) với mạng nơ-ron học từ tự chơi.</p>
 
 <h2 id="simultaneous"><span class="sec">5</span>Trò chơi đồng thời: khi không ai được đi sau</h2>
+<p>Mọi trò chơi đến giờ đều đi lần lượt: người đi sau nhìn thấy nước của người đi trước rồi mới chọn. Có những tình huống cả hai phải quyết định cùng lúc, không ai biết bên kia chọn gì.</p>
 
 <div class="box problem"><div class="box-h">Trò chơi Morra hai ngón (CS221)</div>
 <p>A và B <b>cùng lúc</b> giơ 1 hoặc 2 ngón tay. Cả hai giơ 1: B trả A 2 đô. Cả hai giơ 2: B trả A 4 đô. Khác nhau: A trả B 3 đô. Không ai được nhìn bên kia trước. Cây trò chơi lượt-sau-lượt không còn mô tả được tình huống này.</p>
@@ -196,7 +198,7 @@ gọi: V(s_start, −∞, +∞)</code></pre></div>
 </figure>
 
 <h3>Chiến lược hỗn hợp: ngẫu nhiên hóa để không bị đoán</h3>
-<p>Một <dfn>chiến lược hỗn hợp</dfn> (<span class="en">mixed strategy</span>) là một phân phối xác suất: A giơ 1 với xác suất \(p\), giơ 2 với xác suất \(1-p\). Nếu B biết \(p\) và chọn giơ 1, A được kỳ vọng \(2p - 3(1-p) = 5p - 3\). Nếu B chọn giơ 2, A được \(-3p + 4(1-p) = 4 - 7p\). B sẽ chọn cái nhỏ hơn. A muốn chọn \(p\) để cái nhỏ hơn đó lớn nhất.</p>
+<p>Người công bố trước thua vì bị đoán trúng. Cách chống lại là không để bị đoán: chọn ngẫu nhiên. Một <dfn>chiến lược hỗn hợp</dfn> (<span class="en">mixed strategy</span>) là một phân phối xác suất, đúng dạng chính sách ngẫu nhiên \(\pi(a\mid s)\) ở bài 4.1: A giơ 1 với xác suất \(p\), giơ 2 với xác suất \(1-p\). Nếu B biết \(p\) và chọn giơ 1, A được kỳ vọng \(2p - 3(1-p) = 5p - 3\). Nếu B chọn giơ 2, A được \(-3p + 4(1-p) = 4 - 7p\). B sẽ chọn cái nhỏ hơn. A muốn chọn \(p\) để cái nhỏ hơn đó lớn nhất.</p>
 
 <figure class="fig">
 <svg viewBox="0 0 400 240" role="img" aria-label="Giá trị kỳ vọng của A theo p">
@@ -216,7 +218,7 @@ gọi: V(s_start, −∞, +∞)</code></pre></div>
 <div class="box def"><div class="box-h">Định lý minimax (von Neumann, 1928)</div>
 <p>Với mọi trò chơi đồng thời hai người, tổng bằng 0, số hành động hữu hạn, khi cho phép chiến lược hỗn hợp:</p>
 \[\max_{\pi_A}\min_{\pi_B} V(\pi_A, \pi_B) = \min_{\pi_B}\max_{\pi_A} V(\pi_A, \pi_B).\]
-<p>Nghĩa là <b>với chiến lược hỗn hợp, công bố trước hay sau không còn quan trọng</b>. Lợi thế đi sau hoàn toàn biến mất.</p>
+<p>Vế trái là tình huống A công bố chiến lược trước và B đáp lại tốt nhất; vế phải thì ngược lại. Hai vế bằng nhau nghĩa là <b>với chiến lược hỗn hợp, công bố trước hay sau không còn quan trọng</b>. Lợi thế đi sau hoàn toàn biến mất.</p>
 </div>
 <p>Trong Morra, A chịu thiệt nhẹ (−1/12 mỗi ván) nếu B chơi tối ưu. So với −3 khi A dùng chiến lược thuần túy và lộ bài, ngẫu nhiên hóa đã giúp A rất nhiều.</p>
 

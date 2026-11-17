@@ -29,7 +29,7 @@
 <p>Vẫn các khu phố \(1, \dots, n\): đi bộ tới \(s+1\) tốn 1 phút, đi tàu tới \(2s\) tốn 2 phút. Nhưng giờ tàu <b>hay hỏng</b>: với xác suất 0.5 tàu chạy bình thường, với xác suất 0.5 tàu hỏng và bạn vẫn đứng ở khu \(s\), mất 2 phút vô ích. Lộ trình tối ưu giờ là gì?</p>
 </div>
 
-<p>Câu hỏi “lộ trình tối ưu” không còn hợp lý nữa. Giả sử kế hoạch là “bộ, bộ, tàu”. Nếu tàu hỏng ở bước 3, kế hoạch không nói phải làm gì tiếp. Thứ ta cần là một <strong>quy tắc ứng xử cho mọi tình huống</strong>: “nếu đang ở khu \(s\) thì làm \(a\)”. Một quy tắc như vậy gọi là <dfn>chính sách</dfn> (<span class="en">policy</span>), ký hiệu \(\pi\). Mô hình toán học cho bài toán này là <dfn>quá trình quyết định Markov</dfn> (<span class="en">Markov Decision Process</span>, MDP).</p>
+<p>Câu hỏi này không còn trả lời được bằng một lộ trình. Trong tìm kiếm, ta biết trước mỗi bước đưa mình tới đâu, nên lập được cả chuỗi hành động ngay từ đầu. Giờ thì không: giả sử kế hoạch là “bộ, bộ, tàu”, nếu tàu hỏng ở bước 3, ta vẫn đứng ở khu 3 và kế hoạch không nói phải làm gì tiếp. Vì không biết trước mình sẽ rơi vào tình huống nào, ta phải chuẩn bị sẵn câu trả lời cho <strong>mọi tình huống</strong>: “nếu đang ở khu \(s\) thì làm \(a\)”. Một quy tắc như vậy gọi là <dfn>chính sách</dfn> (<span class="en">policy</span>), ký hiệu \(\pi\). Mô hình toán học cho loại bài toán này là <dfn>quá trình quyết định Markov</dfn> (<span class="en">Markov Decision Process</span>, MDP).</p>
 
 <figure class="fig" id="fig-m1-plan-policy">
 <svg viewBox="0 0 720 190" role="img" aria-label="So sánh kế hoạch cố định và chính sách khi tàu có thể hỏng">
@@ -49,7 +49,7 @@
 <li><b>Quit</b> (dừng): nhận 10 đô, trò chơi kết thúc.</li>
 <li><b>Stay</b> (chơi tiếp): nhận 4 đô, rồi tung một xúc xắc. Ra 1 hoặc 2 (xác suất \(\frac{2}{6} = \frac13\)) thì trò chơi kết thúc. Ra 3–6 (xác suất \(\frac23\)) thì sang vòng mới.</li>
 </ul>
-<p>Nên dừng ngay lấy 10 đô, hay chơi tiếp để “ăn” nhiều lần 4 đô? Trực giác chưa trả lời được. Ta cần công cụ.</p>
+<p>Nên dừng ngay lấy 10 đô, hay chơi tiếp để “ăn” nhiều lần 4 đô? Quit chắc chắn hơn; stay mỗi vòng được ít hơn nhưng có thể được nhiều vòng. Trực giác khó cân hai điều này, nên ta cần một cách tính. Trò chơi này sẽ đi cùng ta suốt chương.</p>
 
 <figure class="fig" id="fig-m1-dice-rules">
 <svg viewBox="0 0 720 160" role="img" aria-label="Luật của trò chơi xúc xắc với hai lựa chọn stay và quit">
@@ -57,6 +57,8 @@
 </svg>
 <figcaption><b>Luật chơi bằng hình.</b> Stay luôn cho 4 đô ngay, nhưng sau đó xúc xắc quyết định: hai mặt đỏ kết thúc trò chơi, bốn mặt xanh cho bạn chơi tiếp. Quit thì không có may rủi nào.</figcaption>
 </figure>
+
+<p>Mỗi vòng có hai việc xảy ra nối tiếp: <em>bạn</em> chọn hành động, rồi <em>xúc xắc</em> quyết định kết quả. CS221 vẽ hai việc này thành hai loại nút khác nhau, và cách vẽ này dùng được cho mọi MDP:</p>
 
 <figure class="fig">
 <svg viewBox="0 0 560 250" role="img" aria-label="Sơ đồ MDP của trò chơi xúc xắc">
@@ -102,8 +104,8 @@
 </div>
 
 <h2 id="policy"><span class="sec">4</span>Chính sách và utility</h2>
-<p>Một <dfn>chính sách</dfn> \(\pi\) gán cho mỗi trạng thái (chưa kết thúc) một hành động: \(\pi(s) \in \text{Actions}(s)\). Trò chơi xúc xắc chỉ có một trạng thái nên chỉ có hai chính sách: “luôn quit” và “luôn stay”.</p>
-<p>Áp một chính sách vào MDP, mỗi lần chơi cho ra một chuỗi ngẫu nhiên gọi là <dfn>episode</dfn> (ván). Mỗi ván có một <dfn>utility</dfn> (tổng phần thưởng). Ví dụ với chính sách “luôn stay”:</p>
+<p>Một <dfn>chính sách</dfn> \(\pi\) gán cho mỗi trạng thái (chưa kết thúc) một hành động: \(\pi(s) \in \text{Actions}(s)\). Nhờ tính Markov, nhìn trạng thái hiện tại là đủ để quyết định, không cần nhớ đã đi qua những đâu. Trò chơi xúc xắc chỉ có một trạng thái nên chỉ có hai chính sách: “luôn quit” và “luôn stay”.</p>
+<p>Chính sách là <em>cách chơi</em>, chưa phải kết quả. Áp một chính sách vào MDP, mỗi lần chơi cho ra một chuỗi ngẫu nhiên gọi là <dfn>episode</dfn> (ván). Kết quả của một ván được đo bằng <dfn>utility</dfn>: tổng các phần thưởng nhận được trong ván (mục 5 sẽ tinh chỉnh cách cộng). Ví dụ với chính sách “luôn stay”:</p>
 <div class="tbl-wrap"><table class="tbl">
 <tr><th>Ván</th><th>Diễn biến</th><th class="n">Utility (\(\gamma = 1\))</th></tr>
 <tr><td>1</td><td>stay +4, xúc xắc ra 2 → end</td><td class="n">4</td></tr>
@@ -117,7 +119,7 @@
 <figcaption><b>Ba ván của bảng, kể bằng hình.</b> Cùng một chính sách “luôn stay”, nhưng xúc xắc ra mặt đỏ sớm hay muộn quyết định ván dài bao nhiêu và được bao nhiêu tiền.</figcaption>
 </figure>
 
-<p>Utility là <em>biến ngẫu nhiên</em>: mỗi ván một khác. Để so hai chính sách, ta không so từng ván mà so <b>giá trị trung bình</b> nếu chơi rất nhiều ván, tức là kỳ vọng.</p>
+<p>Cùng một chính sách mà ba ván cho ba utility khác nhau: utility là <em>biến ngẫu nhiên</em>. Vì vậy không thể chấm một chính sách qua một ván. Ta chấm nó bằng utility <b>trung bình</b> nếu chơi rất nhiều ván, tức là <b>kỳ vọng</b> của utility.</p>
 
 <div class="box math"><div class="box-h">Toán nền · Kỳ vọng (expected value)</div>
 <p>Nếu một đại lượng nhận giá trị \(u_1, u_2, \dots\) với xác suất \(p_1, p_2, \dots\), thì <dfn>kỳ vọng</dfn> là \(\mathbb E[U] = \sum_i p_i u_i\): trung bình có trọng số theo xác suất. Ví dụ: tung xúc xắc, được 6 đô nếu ra mặt 6, ngược lại được 0. Kỳ vọng là \(\frac16\cdot6 + \frac56\cdot 0 = 1\) đô. Không ván nào bạn nhận đúng 1 đô, nhưng chơi 600 ván bạn sẽ có khoảng 600 đô.</p>
@@ -129,13 +131,17 @@
 </figure>
 </div>
 
+<div class="box pitfall"><div class="box-h">Dễ nhầm · Chính sách, utility và giá trị</div>
+<p>Ba khái niệm nằm ở ba tầng khác nhau. <b>Chính sách</b> \(\pi\) là quy tắc chọn hành động, thứ ta được quyết định. <b>Utility</b> là phần thưởng thu được trong <em>một ván</em> cụ thể, thay đổi theo may rủi. <b>Giá trị</b> \(V_\pi\) (mục 6) là utility <em>kỳ vọng</em> khi theo \(\pi\): một con số cố định, dùng để chấm điểm chính sách. Bài toán MDP là tìm chính sách có giá trị lớn nhất, gọi là chính sách tối ưu.</p>
+</div>
+
 <h2 id="discount"><span class="sec">5</span>Hệ số chiết khấu \(\gamma\)</h2>
-<p>Một ván có phần thưởng \(r_1, r_2, r_3, \dots\) ở các bước 1, 2, 3, … Utility có chiết khấu được định nghĩa là:</p>
+<p>Ở mục 4, utility là tổng thẳng các phần thưởng: 4 đô ở vòng thứ mười được tính y như 4 đô ở vòng đầu. Nhiều bài toán cần coi trọng phần thưởng đến sớm hơn phần thưởng đến muộn, và hệ số chiết khấu \(\gamma\) làm đúng việc đó. Một ván có phần thưởng \(r_1, r_2, r_3, \dots\) ở các bước 1, 2, 3, … thì utility có chiết khấu là:</p>
 \[u = r_1 + \gamma\,r_2 + \gamma^2 r_3 + \gamma^3 r_4 + \cdots\]
-<p>Phần thưởng càng xa trong tương lai càng bị nhân với lũy thừa cao của \(\gamma\), tức là càng “mất giá”. Lý do cần nó:</p>
+<p>Phần thưởng càng xa trong tương lai càng bị nhân với lũy thừa cao của \(\gamma\), tức là càng “mất giá”. Có hai lý do để làm vậy:</p>
 <ul>
 <li><b>Trực giác đời thường:</b> 100 nghìn hôm nay đáng giá hơn 100 nghìn năm sau. \(\gamma\) thể hiện mức độ “sốt ruột”.</li>
-<li><b>Toán học:</b> nếu trò chơi có thể kéo dài vô hạn, tổng không chiết khấu có thể vô hạn và không so sánh được. Với \(\gamma < 1\) và phần thưởng bị chặn, tổng luôn hữu hạn.</li>
+<li><b>Toán học:</b> nếu trò chơi có thể kéo dài vô hạn, tổng không chiết khấu có thể vô hạn và không so sánh được. Với \(\gamma < 1\) và phần thưởng bị chặn, tổng luôn hữu hạn. Còn \(\gamma = 1\) (tổng thẳng như mục 4) vẫn dùng được khi ván chắc chắn kết thúc, như trò xúc xắc.</li>
 </ul>
 <div class="box example"><div class="box-h">Ví dụ</div>
 <p>Ván 2 ở trên (thưởng 4, 4). Với \(\gamma = 1\): \(u = 4 + 4 = 8\). Với \(\gamma = 0.5\): \(u = 4 + 0.5\times4 = 6\). Với \(\gamma = 0\): \(u = 4\), chỉ quan tâm phần thưởng ngay trước mắt (“thiển cận” tuyệt đối).</p>
@@ -154,14 +160,14 @@
 <p>Cho một chính sách \(\pi\). Nếu bắt đầu từ trạng thái \(s\) và làm theo \(\pi\) mãi, utility kỳ vọng là bao nhiêu? Chỉ khi chấm điểm được một chính sách, ta mới so sánh được các chính sách và tìm ra chính sách tốt nhất (bài 3.2).</p>
 </div>
 
-<p>Ta định nghĩa hai đại lượng:</p>
+<p>Sơ đồ MDP có hai loại nút, nên ta gắn cho mỗi loại một đại lượng:</p>
 <ul>
 <li>\(V_\pi(s)\), <dfn>giá trị</dfn> (<span class="en">value</span>) của trạng thái \(s\): utility kỳ vọng khi bắt đầu từ \(s\) và theo \(\pi\).</li>
 <li>\(Q_\pi(s, a)\), <dfn>Q-giá trị</dfn>: utility kỳ vọng khi ở \(s\), <em>làm \(a\) trước</em>, rồi từ đó mới theo \(\pi\). Đây là giá trị của nút cơ hội \((s,a)\).</li>
 </ul>
-<p>Hai đại lượng này định nghĩa lẫn nhau, giống FutureCost ở chương 2 nhưng có thêm phép lấy kỳ vọng:</p>
+<p>Tách làm hai để mỗi công thức chỉ mô tả một việc: ở nút trạng thái, chính sách chọn hành động; ở nút cơ hội, may rủi chọn kết quả. Cả hai dựa trên một nhận xét đơn giản: utility của một ván bằng phần thưởng của bước đầu cộng \(\gamma\) lần utility của phần ván còn lại, mà phần còn lại, bắt đầu từ \(s'\), có kỳ vọng đúng bằng \(V_\pi(s')\). Ta được hai công thức định nghĩa lẫn nhau, giống FutureCost ở chương 2 nhưng có thêm phép lấy kỳ vọng:</p>
 \[V_\pi(s) = \begin{cases} 0 & \text{nếu IsEnd}(s) \\ Q_\pi(s, \pi(s)) & \text{ngược lại} \end{cases} \qquad Q_\pi(s,a) = \sum_{s'} T(s,a,s')\,\big[\text{Reward}(s,a,s') + \gamma\, V_\pi(s')\big].\]
-<p>Đọc công thức \(Q\) bằng lời như sau: xét từng kết quả \(s'\) có thể xảy ra. Ở kết quả đó, ta nhận ngay phần thưởng, cộng với giá trị (đã chiết khấu một bước) của việc tiếp tục từ \(s'\). Sau đó lấy trung bình theo xác suất của từng kết quả.</p>
+<p>Đọc công thức \(Q\) bằng lời: với mỗi kết quả \(s'\) có thể xảy ra, lấy phần thưởng ngay cộng giá trị (đã chiết khấu một bước) của việc tiếp tục từ \(s'\), rồi lấy trung bình theo xác suất của các kết quả.</p>
 
 <figure class="fig" id="fig-m1-q-tree">
 <svg viewBox="0 0 720 234" role="img" aria-label="Cây một bước của trò xúc xắc dùng để tính Q">
@@ -178,7 +184,7 @@
 </div>
 
 <h3>Thuật toán khi không giải được tay</h3>
-<p>Trò chơi xúc xắc chỉ có một ẩn nên ta giải phương trình trực tiếp được. Với hàng nghìn trạng thái, các phương trình phụ thuộc chéo nhau. CS221 dùng cách <b>lặp</b>: bắt đầu bằng mọi giá trị bằng 0, rồi liên tục thay vế phải bằng giá trị vừa tính.</p>
+<p>Trò chơi xúc xắc chỉ có một ẩn nên ta giải phương trình trực tiếp được. Với hàng nghìn trạng thái, ta có hàng nghìn phương trình phụ thuộc chéo nhau, và giải trực tiếp rất tốn kém. CS221 dùng cách <b>lặp</b>: bắt đầu bằng mọi giá trị bằng 0, rồi liên tục thay vế phải bằng giá trị vừa tính.</p>
 <div class="algo"><div class="algo-h">Đánh giá chính sách lặp (iterative policy evaluation)</div>
 <pre><code>V⁽⁰⁾(s) = 0 với mọi s
 for t = 1, 2, …, t_PE:
@@ -197,18 +203,18 @@ for t = 1, 2, …, t_PE:
 <figcaption><b>Giá trị qua từng vòng của mô phỏng.</b> Các đoạn đỏ đứt là khoảng cách còn lại tới 12: 8, rồi 5.33, rồi 3.56, mỗi lần chỉ còn \(\tfrac23\) lần trước. Sau 20 vòng, khoảng cách đã dưới 0.003.</figcaption>
 </figure>
 
+<p><b>Chi phí:</b> mỗi vòng duyệt mọi trạng thái \(s\) và mọi kết quả \(s'\), nên tốn \(O(t_{PE}\cdot S\cdot S')\), với \(S'\) là số kết quả tối đa của một hành động. Nếu \(\gamma < 1\), sai số giảm theo cấp số nhân, nên số vòng cần thiết thường không lớn.</p>
+
 <div class="box pitfall"><div class="box-h">Dễ nhầm · \(V\) và \(Q\)</div>
 <p>\(V_\pi(s)\) là giá trị của một <b>trạng thái</b> (nút tròn lớn), khi đã ngầm hiểu hành động do \(\pi\) chọn. \(Q_\pi(s,a)\) là giá trị của một <b>cặp trạng thái–hành động</b> (nút cơ hội), cho phép xét cả những hành động \(\pi\) không chọn. Bài sau cần \(Q\) để so sánh các hành động và chọn hành động tốt nhất.</p>
 </div>
 
-<p><b>Chi phí:</b> mỗi vòng duyệt mọi trạng thái \(s\) và mọi kết quả \(s'\), nên tốn \(O(t_{PE}\cdot S\cdot S')\), với \(S'\) là số kết quả tối đa của một hành động. Nếu \(\gamma < 1\), sai số giảm theo cấp số nhân, nên số vòng cần thiết thường không lớn.</p>
-
 <div class="box recap"><div class="box-h">Ghi nhớ</div>
-<p>MDP = tìm kiếm + may rủi: \(T(s,a,s')\) thay cho Succ, Reward thay cho Cost, thêm \(\gamma\). Lời giải là <b>chính sách</b>, không phải đường đi. Chất lượng của chính sách là <b>utility kỳ vọng</b> \(V_\pi\). Đánh giá chính sách = lặp công thức \(V \leftarrow \sum T\,[R + \gamma V]\) cho đến khi hội tụ.</p>
+<p>MDP = tìm kiếm + may rủi: \(T(s,a,s')\) thay cho Succ, Reward thay cho Cost, thêm \(\gamma\). Lời giải là <b>chính sách</b>, không phải đường đi. Mỗi ván cho một utility ngẫu nhiên; chất lượng của chính sách là <b>utility kỳ vọng</b> \(V_\pi\). Đánh giá chính sách = lặp công thức \(V \leftarrow \sum T\,[R + \gamma V]\) cho đến khi hội tụ.</p>
 </div>
 
 <div class="box link"><div class="box-h">Bài tiếp theo</div>
-<p>Ta mới chấm điểm được một chính sách <em>cho trước</em>. Bài 3.2 tìm chính sách <b>tốt nhất</b> bằng cách thay “làm theo \(\pi\)” bằng “chọn hành động tốt nhất” (value iteration). Sau đó bài 3.2 xét trường hợp khó hơn nhiều: khi ta <em>không biết</em> \(T\) và Reward, và phải tự trải nghiệm để học (học tăng cường).</p>
+<p>Ta mới chấm điểm được một chính sách <em>cho trước</em>. Bài 3.2 tìm chính sách <b>tốt nhất</b> bằng cách thay “làm theo \(\pi\)” bằng “chọn hành động tốt nhất” (value iteration), rồi xét trường hợp khó hơn nhiều: khi ta <em>không biết</em> \(T\) và Reward, và phải tự trải nghiệm để học (học tăng cường).</p>
 </div>
 
 <details class="quiz"><summary>Tự kiểm tra: nếu xúc xắc ra 1 thì kết thúc (xác suất 1/6), chính sách “luôn stay” có giá trị bao nhiêu (γ = 1)?</summary><div class="ans"><p>\(V = \frac16(4) + \frac56(4 + V) = 4 + \frac56V\), suy ra \(V = 24\). Trung bình chơi được 6 vòng.</p></div></details>
