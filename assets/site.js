@@ -40,13 +40,15 @@
       <a class="brand" href="index.html">CSAI</a>
       <span class="crumb">${lesson?(lesson.num+' · '+lesson.title):'Cơ sở Trí tuệ nhân tạo · theo Stanford CS221'}</span>
       <span class="spacer"></span>
-      <button class="icon-btn print-btn" type="button" title="In bài (Ctrl+P)" aria-label="In nội dung trang">${ICON_PRINT}</button>
+      ${pageId==='home'
+        ?`<a class="icon-btn print-btn" href="chuong.html?c=all&amp;in=1" target="_blank" rel="noopener" title="In toàn bộ khóa học" aria-label="In toàn bộ các chương">${ICON_PRINT}</a>`
+        :`<button class="icon-btn print-btn" type="button" title="${pageId==='chapter'?'In cả trang (có mục lục)':'In bài (Ctrl+P)'}" aria-label="In nội dung trang">${ICON_PRINT}</button>`}
       <button class="icon-btn theme-btn" type="button" title="Giao diện sáng/tối" aria-label="Đổi giao diện sáng/tối">${ICON_THEME}</button>
       <div class="progress"></div>`;
     document.body.prepend(top);
 
     /* In: luôn in bằng giao diện sáng, xong thì trả lại giao diện đang dùng */
-    top.querySelector('.print-btn').addEventListener('click',()=>window.print());
+    if(pageId!=='home')top.querySelector('.print-btn').addEventListener('click',()=>window.print());  /* trang chủ: nút là liên kết mở bản in cả khóa */
     let themeBeforePrint=null;
     /* In: mở sẵn mọi câu hỏi tự kiểm tra (giấy không bấm được), in xong đóng lại những câu vốn đang đóng */
     let quizOpened=null;
@@ -64,12 +66,13 @@
        Trên trang cả chương, các bài của chương đó trỏ tới vị trí trong trang và mỗi bài có mục lục riêng. */
     const side=document.getElementById('sidebar');
     const chapPage=pageId==='chapter';
-    const chapN=chapPage?parseInt(new URLSearchParams(location.search).get('c'),10):0;
+    const chapC=chapPage?new URLSearchParams(location.search).get('c'):'';
+    const chapN=parseInt(chapC,10)||0;
     if(side){
       let h='';
       CHAPTERS.forEach((ch,ci)=>{
-        const curCh=chapPage&&ci+1===chapN;
-        h+=`<div class="nav-chapter"><a class="nav-chapter-title${curCh?' current':''}" href="chuong.html?c=${ci+1}" title="Đọc cả chương">${ch.name}</a>`;
+        const curCh=chapPage&&(chapC==='all'||ci+1===chapN);
+        h+=`<div class="nav-chapter"><a class="nav-chapter-title${chapPage&&ci+1===chapN?' current':''}" href="chuong.html?c=${ci+1}" title="Đọc cả chương">${ch.name}</a>`;
         for(const l of ch.lessons){
           h+=`<a class="nav-lesson${l.id===pageId?' current':''}" data-lesson="${l.id}" href="${curCh?'#'+l.id:l.file}"><span class="num">${l.num}</span><span>${l.title}</span></a>`;
           if(l.id===pageId||curCh)h+=`<nav class="toc" data-for="${l.id}" aria-label="Mục lục bài ${l.num}"></nav>`;

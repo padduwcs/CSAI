@@ -378,6 +378,21 @@ a.nav-chapter-title.current{color:var(--accent)}
 .chapter-cover .lessons{margin:.6rem 0 0;padding-left:1.2rem;font-family:var(--sans);font-size:.95rem}
 .ch-lesson{margin-top:4rem;padding-top:2.5rem;border-top:1px solid var(--line-2)}
 .ch-status{font-family:var(--sans);color:var(--muted)}
+.ch-part{margin-top:5rem;padding-top:2.5rem;border-top:2px solid var(--ink-2)}
+.ch-part h1{margin-top:.2rem}
+.ch-part+.ch-lesson{margin-top:1.5rem;padding-top:0;border-top:0}
+/* mục lục chỉ có trong bản in của trang cả chương / cả khóa */
+.print-toc{display:none}
+.print-toc h2{display:block;font-size:1.35rem;margin:0 0 .8rem;padding:0;border:0}
+.print-toc ol{list-style:none;margin:0;padding:0}
+.print-toc a{color:var(--ink);text-decoration:none}
+.print-toc .pt-ch{font-family:var(--sans);font-weight:700;font-size:1.1rem;margin:1rem 0 .2rem}
+.print-toc .pt-ch+.pt-lessons{padding-left:1.2rem}
+.print-toc .pt-lesson{margin:.35rem 0;break-inside:avoid}
+.print-toc .pt-lesson>a{font-family:var(--sans);font-weight:600}
+.print-toc .pt-lesson .n{display:inline-block;min-width:2.4em;color:var(--accent-ink)}
+.print-toc .pt-secs{padding-left:2.4em;font-size:.95em}
+.print-toc .pt-secs li{margin:.08rem 0}
 
 h1,h2,h3{text-wrap:balance}
 .pager .t{text-wrap:pretty}
@@ -413,6 +428,10 @@ h1,h2,h3{text-wrap:balance}
   .ch-lesson{margin-top:1.2rem;padding-top:.8rem}
   .ch-lesson+.ch-lesson{break-before:page;margin-top:0;padding-top:0;border-top:0}
   .chapter-cover{margin-bottom:0}
+  .chapter-cover .lead,.chapter-cover .lessons{display:none}
+  .print-toc{display:block;break-after:page;margin-top:1.2rem}
+  .ch-part{break-before:page;margin-top:0;padding-top:0;border-top:0}
+  .ch-part+.ch-lesson{margin-top:.6rem}
   .layout,body.nav-hidden .layout{display:block}
   main.page{padding:0}
   .content{max-width:none}
