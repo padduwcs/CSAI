@@ -48,8 +48,12 @@
     /* In: luôn in bằng giao diện sáng, xong thì trả lại giao diện đang dùng */
     top.querySelector('.print-btn').addEventListener('click',()=>window.print());
     let themeBeforePrint=null;
-    addEventListener('beforeprint',()=>{const r=document.documentElement;if(themeBeforePrint===null)themeBeforePrint=r.dataset.theme||'';r.dataset.theme='light';});
-    addEventListener('afterprint',()=>{if(themeBeforePrint===null)return;const r=document.documentElement;if(themeBeforePrint)r.dataset.theme=themeBeforePrint;else delete r.dataset.theme;themeBeforePrint=null;});
+    /* In: mở sẵn mọi câu hỏi tự kiểm tra (giấy không bấm được), in xong đóng lại những câu vốn đang đóng */
+    let quizOpened=null;
+    addEventListener('beforeprint',()=>{const r=document.documentElement;if(themeBeforePrint===null)themeBeforePrint=r.dataset.theme||'';r.dataset.theme='light';
+      if(!quizOpened){quizOpened=[...document.querySelectorAll('details:not([open])')];quizOpened.forEach(d=>d.open=true);}});
+    addEventListener('afterprint',()=>{if(quizOpened){quizOpened.forEach(d=>d.open=false);quizOpened=null;}
+      if(themeBeforePrint===null)return;const r=document.documentElement;if(themeBeforePrint)r.dataset.theme=themeBeforePrint;else delete r.dataset.theme;themeBeforePrint=null;});
 
     top.querySelector('.theme-btn').addEventListener('click',()=>{
       const dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);

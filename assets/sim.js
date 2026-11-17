@@ -29,8 +29,15 @@ function stepper(ctl,onRender){
   let steps=[],i=0;const lab=w.querySelector('.sim-step');const B=a=>w.querySelector(`[data-a=${a}]`);
   function go(k){i=Math.max(0,Math.min(steps.length-1,k));lab.textContent=`Bước ${i}/${steps.length-1}`;B('prev').disabled=B('reset').disabled=i===0;B('next').disabled=B('end').disabled=i===steps.length-1;onRender(steps[i],i,steps);}
   w.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;({reset:()=>go(0),prev:()=>go(i-1),next:()=>go(i+1),end:()=>go(steps.length-1)})[b.dataset.a]();});
-  return {set(s){steps=s;go(/(^|[?&#])end$/.test(location.search+location.hash)?s.length-1:0);},go,get i(){return i;}};
+  const api={set(s){steps=s;go(/(^|[?&#])end$/.test(location.search+location.hash)?s.length-1:0);},go,get i(){return i;},
+    /* khi in: nhảy tới bước cuối (giấy không bấm được), in xong trả lại bước cũ */
+    toEnd(){if(api.saved==null&&steps.length){api.saved=i;go(steps.length-1);}},
+    restore(){if(api.saved!=null){go(api.saved);api.saved=null;}}};
+  STEPPERS.push(api);return api;
 }
+const STEPPERS=[];
+addEventListener('beforeprint',()=>STEPPERS.forEach(s=>s.toEnd()));
+addEventListener('afterprint',()=>STEPPERS.forEach(s=>s.restore()));
 function seg(ctl,options,cur,onChange){
   const s=document.createElement('span');s.className='seg';
   options.forEach(([v,l])=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.dataset.v=v;if(v===cur)b.classList.add('on');s.append(b);});
@@ -344,6 +351,12 @@ function gdSim(root,cfg){
     }
     draw();
   }
+  /* khi in: chạy tiếp tới lúc hội tụ (tối đa 200 bước) để giấy in ra trạng thái cuối; in xong trả lại như cũ */
+  let saved=null;
+  STEPPERS.push({
+    toEnd(){if(saved)return;saved={w:w.slice(),hist:hist.slice(),ptr,last};
+      for(let t=hist.length-1;t<200;t++){const a=hist[hist.length-1].L;step(1);const b=hist[hist.length-1].L;if(!isFinite(b)||Math.abs(a-b)<1e-7)break;}},
+    restore(){if(!saved)return;({w,hist,ptr,last}=saved);w=w.slice();saved=null;draw();}});
   const xr=cfg.xr||[0,5],yr=cfg.yr||[0,5];
   function draw(){
     const Wd=420,Hd=300,ml=36,mb=30,mt=12,mr=12;
