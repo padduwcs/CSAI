@@ -274,6 +274,7 @@ gọi: V(s_start, −∞, +∞)</code></pre></div>
 
 <div class="box link"><div class="box-h">Nhìn lại cả hành trình</div>
 <p><b>Chương 1</b> học hàm \(f\) từ dữ liệu. <b>Chương 2</b> tìm chuỗi hành động trong thế giới tất định (min chi phí). <b>Chương 3</b> thêm may rủi: thay min bằng kỳ vọng, lời giải thành chính sách, và học từ trải nghiệm khi không biết luật. <b>Chương 4</b> thêm đối thủ: thay kỳ vọng bằng min ở lượt đối thủ. Cả bốn chương dùng chung một mạch: định nghĩa giá trị bằng truy hồi, tính nó hiệu quả, và học những phần chưa biết (chi phí, \(T\), Eval) bằng các kỹ thuật của chương 1.</p>
+<p>Chương 2–4 đều nghĩ theo trạng thái và thứ tự hành động. <b>Chương 5</b> đổi ngôn ngữ mô hình: với những bài như tô màu bản đồ hay xếp lịch, thứ tự không quan trọng, nên ta mô tả lời giải bằng các <em>biến</em> và các <em>factor</em> ràng buộc chúng, rồi để thuật toán tự chọn thứ tự tìm.</p>
 </div>
 
 <details class="quiz"><summary>Tự kiểm tra: trong cây alpha-beta ở trên, nếu đổi thứ tự hai nhánh của gốc (xét R trước L) thì có cắt được cây con d không?</summary><div class="ans"><p>Không. Xét R trước thì α ở gốc vẫn là −∞, nên R phải được tính đầy đủ: c = 2, d = max(0, −1) = 0, R = 0. Sau đó xét L với α = 0: a = 5 nên L ≤ 5. Vào b, lá 6 ≥ β = 5 nên vẫn cắt được lá 9. Thứ tự tệ hơn làm mất một lần cắt. Đó là lý do thứ tự duyệt rất quan trọng.</p></div></details>

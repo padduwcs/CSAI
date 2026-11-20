@@ -423,7 +423,204 @@ function kmeansSim(root,cfg){
   st.set(steps);
 }
 
-const REG={graph:graphSim,traverse:traverseSim,game:gameSim,vi:viSim,gd:gdSim,kmeans:kmeansSim};
+/* ---------- CSP: backtracking tô màu bản đồ (cơ bản, forward checking, MCV + LCV, AC-3) ---------- */
+const CSP_COL={R:'var(--min)',G:'var(--ok)',B:'var(--max)'};
+const CSP_NAME={R:'đỏ',G:'xanh lá',B:'xanh dương'};
+function cspSteps(cfg,mode){
+  const V=cfg.order.slice(),D=cfg.domain,E=cfg.edges;
+  const nb={};V.forEach(v=>nb[v]=[]);E.forEach(([a,b])=>{nb[a].push(b);nb[b].push(a);});
+  const steps=[];let nAssign=0,nBack=0;
+  const snap=(x,dom,extra)=>Object.assign({x:{...x},dom:Object.fromEntries(V.map(v=>[v,dom[v].slice()])),nAssign,nBack},extra);
+  const copy=dom=>{const d={};V.forEach(u=>d[u]=dom[u].slice());return d;};
+  /* forward checking: bỏ v khỏi miền các hàng xóm chưa gán của X */
+  const lookFC=(dom,X,v,x)=>{const d=copy(dom);d[X]=[v];const log=[];
+    nb[X].forEach(u=>{if(u in x)return;if(d[u].includes(v)){d[u]=d[u].filter(c=>c!==v);log.push([u,X,[v]]);}});return {d,log};};
+  /* AC-3: lan truyền tiếp hễ miền của ai co lại */
+  const lookAC3=(dom,X,v)=>{const d=copy(dom);d[X]=[v];const S=[X];const log=[];
+    while(S.length){const j=S.shift();for(const i of nb[j]){const rm=d[i].filter(a=>!d[j].some(b=>b!==a));
+      if(rm.length){d[i]=d[i].filter(a=>!rm.includes(a));log.push([i,j,rm]);if(!S.includes(i))S.push(i);}}}
+    return {d,log};};
+  const look=mode!=='basic',mcv=mode==='mcv'||mode==='ac3';
+  function rec(x,dom){
+    const un=V.filter(v=>!(v in x));
+    if(!un.length){steps.push(snap(x,dom,{done:true}));return true;}
+    let X=un[0],tie=[];
+    if(mcv){let best=Infinity;for(const u of un)if(dom[u].length<best){best=dom[u].length;X=u;}tie=un.filter(u=>dom[u].length===best);}
+    let vals=look?dom[X].slice():D.slice(),score=null;
+    if(mcv){score={};vals.forEach(v=>{const {d}=lookFC(dom,X,v,x);score[v]=nb[X].filter(u=>!(u in x)).reduce((s,u)=>s+d[u].length,0);});
+      vals=vals.slice().sort((a,b)=>score[b]-score[a]);}
+    steps.push(snap(x,dom,{pick:X,tie,score,vals}));
+    for(const v of vals){
+      const bad=nb[X].filter(u=>(u in x)&&x[u]===v);
+      if(bad.length){steps.push(snap(x,dom,{cur:X,tryv:v,conflict:bad}));continue;}
+      nAssign++;const x2={...x,[X]:v};let d2=dom,log=[];
+      if(look){const r=mode==='ac3'?lookAC3(dom,X,v):lookFC(dom,X,v,x);d2=r.d;log=r.log;}
+      const empty=V.filter(u=>!(u in x2)&&d2[u].length===0);
+      steps.push(snap(x2,d2,{cur:X,assigned:v,empty,log}));
+      if(empty.length)continue;
+      if(rec(x2,d2))return true;
+    }
+    nBack++;steps.push(snap(x,dom,{back:X}));return false;
+  }
+  const dom0={};V.forEach(v=>dom0[v]=D.slice());
+  steps.push(snap({},dom0,{init:true}));rec({},dom0);return steps;
+}
+function cspSim(root,cfg){
+  const LAB={basic:'Cơ bản',fc:'Forward checking',mcv:'FC + MCV + LCV',ac3:'AC-3 + MCV + LCV'};
+  const modes=cfg.modes||['basic','fc','mcv','ac3'];let mode=cfg.mode||modes[0];
+  const ui=shell(root,{title:cfg.title||'Backtracking tô màu bản đồ',sub:cfg.sub,legend:'<span><i style="border-color:var(--accent);background:var(--accent-soft)"></i>Biến đang xét</span><span><i style="border-color:var(--min);background:var(--min-soft)"></i>Miền rỗng</span><span>Ô vuông nhỏ dưới tên vùng: các màu còn trong miền</span>'});
+  seg(ui.ctl,modes.map(m=>[m,LAB[m]]),mode,v=>{mode=v;st.set(cspSteps(cfg,mode));});
+  const st=stepper(ui.ctl,render);
+  const R=cfg.regions,[W,H]=cfg.view||[300,240];
+  const c=v=>`<b style="color:${CSP_COL[v]}">${v}</b>`;
+  const list=a=>a.join(', ');
+  function note(s){
+    const ord=list(cfg.order);
+    if(s.init)return {basic:`Phép gán rỗng, mọi vùng còn đủ ba màu. Chế độ <b>cơ bản</b>: chọn biến theo thứ tự cố định ${ord}, thử màu theo thứ tự R, G, B, không nhìn trước. Chỉ kiểm tra δ với các vùng đã tô.`,
+      fc:`Phép gán rỗng. Vẫn thứ tự cố định ${ord} và thứ tự màu R, G, B, nhưng mỗi lần gán sẽ <b>forward checking</b>: xóa màu vừa dùng khỏi miền của các vùng kề chưa tô.`,
+      mcv:`Phép gán rỗng. Mỗi bước chọn biến bằng <b>MCV</b> (miền nhỏ nhất, hòa thì theo thứ tự ${ord}), sắp giá trị bằng <b>LCV</b>, và forward checking sau mỗi lần gán.`,
+      ac3:`Phép gán rỗng. Như chế độ trước (MCV, LCV) nhưng nhìn trước bằng <b>AC-3</b>: miền của ai co lại thì kiểm tra tiếp các hàng xóm của nó.`}[mode];
+    if(s.pick){
+      let t=mode==='basic'||mode==='fc'?`Chọn biến tiếp theo theo thứ tự cố định: <b>${s.pick}</b>.`
+        :`MCV: <b>${s.pick}</b> có miền nhỏ nhất (${s.dom[s.pick].length} giá trị)${s.tie.length>1?`, hòa với ${list(s.tie.filter(u=>u!==s.pick))} nên lấy theo thứ tự cố định`:''}.`;
+      if(s.score)t+=` LCV xếp giá trị: ${s.vals.map(v=>`${c(v)} (hàng xóm chưa tô còn tổng ${s.score[v]} giá trị)`).join(', ')}.`;
+      else t+=` Thứ tự thử: ${s.vals.map(c).join(', ')}.`;
+      return t;}
+    if(s.conflict)return `Thử ${s.cur} = ${c(s.tryv)}: δ = 0 vì ${list(s.conflict.map(u=>`[${s.cur} ≠ ${u}] = 0`))} (${list(s.conflict)} đã là ${s.tryv}). Bỏ giá trị này, không đi xuống nhánh đó.`;
+    if(s.assigned){
+      let t=`Gán <b>${s.cur} = </b>${c(s.assigned)}`+(mode==='basic'?`: δ = 1, không vi phạm ràng buộc nào với các vùng đã tô.`:'.');
+      if(mode==='fc')t+=s.log.length?` Forward checking: xóa ${c(s.assigned)} khỏi miền của ${list(s.log.map(l=>l[0]))}.`:' Forward checking: không vùng kề nào chưa tô còn màu này, miền không đổi.';
+      if(mode==='mcv')t+=s.log.length?` Forward checking: xóa ${c(s.assigned)} khỏi miền của ${list(s.log.map(l=>l[0]))}.`:' Forward checking: miền không đổi.';
+      if(mode==='ac3')t+=s.log.length?` AC-3: ${list(s.log.map(([i,j,rm])=>`${i} bỏ ${rm.map(c).join(', ')} (vì ${j})`))}.`:' AC-3: không miền nào đổi.';
+      if(s.empty&&s.empty.length)t+=` Miền của <b>${list(s.empty)}</b> rỗng: phép gán này không thể mở rộng, bỏ ${s.cur} = ${s.assigned} ngay.`;
+      return t;}
+    if(s.back)return `Đã thử hết giá trị của <b>${s.back}</b> mà không đi tiếp được: quay lui lên biến gán trước đó.`;
+    if(s.done)return `Đủ ${cfg.order.length} vùng, mọi ràng buộc đều thỏa. Mọi factor là ràng buộc nên phép gán nhất quán đầu tiên là đủ, dừng. Tổng cộng <b>${s.nAssign}</b> lần gán, <b>${s.nBack}</b> lần quay lui.`;
+    return '';
+  }
+  function render(s){
+    const svg=newSvg(ui.viz,W,H);
+    const hot=s.cur||s.pick||s.back;
+    for(const k in R){const r=R[k],v=s.x[k];
+      S('polygon',{points:r.poly.map(p=>p.join(',')).join(' '),style:`fill:${v?CSP_COL[v]:'var(--surface-2)'};fill-opacity:${v?.42:1};stroke:${k===hot?'var(--accent)':'var(--ink-2)'};stroke-width:${k===hot?3:1.2};stroke-linejoin:round`},svg);}
+    for(const k in R){const r=R[k],[lx,ly]=r.lab,emp=!(k in s.x)&&s.dom[k].length===0;
+      haloText(svg,lx,ly,k,'t-b'+(emp?' t-min':''));
+      const dm=s.dom[k],w=10,x0=lx-(cfg.domain.length*(w+2)-2)/2;
+      cfg.domain.forEach((v,i)=>{const on=dm.includes(v);S('rect',{x:x0+i*(w+2),y:ly+5,width:w,height:w,rx:2,style:on?`fill:${CSP_COL[v]};stroke:var(--surface);stroke-width:1`:'fill:none;stroke:var(--line-2);stroke-width:1;stroke-dasharray:2 2'},svg);});
+      if(emp)S('rect',{x:x0-3,y:ly+2,width:cfg.domain.length*(w+2)+4,height:w+6,rx:3,style:'fill:none;stroke:var(--min);stroke-width:1.6'},svg);
+    }
+    let h='<h5>Miền giá trị</h5><table><tr><th>Biến</th><th>Còn lại</th><th>Đã gán</th></tr>';
+    cfg.order.forEach(k=>{const dm=s.dom[k];h+=`<tr${k===hot?' class="top"':''}><td>${k}</td><td>${dm.length?dm.map(c).join(' '):'<b style="color:var(--min)">rỗng</b>'}</td><td>${s.x[k]?c(s.x[k]):'·'}</td></tr>`;});
+    h+=`</table><h5>Thống kê</h5><p style="margin:0">Số lần gán: <b>${s.nAssign}</b> · quay lui: <b>${s.nBack}</b></p>`;
+    ui.side.innerHTML=h;ui.note.innerHTML=note(s);
+  }
+  st.set(cspSteps(cfg,mode));
+}
+
+/* ---------- Chuỗi theo dõi vật thể: factor quan sát o_i và factor chuyển t_i ---------- */
+function chainModel(cfg){
+  const obs=cfg.obs,near=cfg.near||[2,1,0],dom=cfg.dom||[0,1,2],n=obs.length;
+  const nf=(a,b)=>{const d=Math.abs(a-b);return d<near.length?near[d]:0;};
+  /* các factor đã tính được của phép gán (một phần) x theo thứ tự X1..Xk */
+  const factors=x=>{const f=[];x.forEach((v,i)=>{if(i>0)f.push({nm:`t${i}`,v:nf(x[i-1],v)});f.push({nm:`o${i+1}`,v:nf(v,obs[i])});});return f;};
+  const weight=x=>factors(x).reduce((p,f)=>p*f.v,1);
+  let best=null;(function all(x){if(x.length===n){const w=weight(x);if(!best||w>best.w)best={x:x.slice(),w};return;}dom.forEach(v=>all([...x,v]));})([]);
+  return {obs,dom,n,nf,factors,weight,best};
+}
+const tup=x=>'('+x.join(', ')+')';
+
+function beamSim(root,cfg){
+  const M=chainModel(cfg);const Ks=cfg.Ks||[1,2,3];let K=cfg.K||Ks[0];
+  const ui=shell(root,{title:cfg.title||'Beam search',sub:cfg.sub,legend:'<span><i style="border-color:var(--chance);background:var(--chance-soft)"></i>Vừa sinh ra (C′)</span><span><i style="border-color:var(--ok);background:var(--ok-soft)"></i>Được giữ trong C</span><span><i style="opacity:.35"></i>Bị cắt</span>'});
+  seg(ui.ctl,Ks.map(k=>[String(k),`K = ${k}`]),String(K),v=>{K=+v;st.set(build());});
+  const st=stepper(ui.ctl,render);
+  function build(){
+    const nodes=[{id:0,x:[],lvl:0,w:1,par:null}];let C=[nodes[0]];const steps=[];
+    const keep={0:1};
+    steps.push({nodes:1,keep:{...keep},lvl:0,note:`Ứng viên ban đầu: C = [ { } ], chỉ có phép gán rỗng (trọng số 1). Beam size K = ${K}.`});
+    for(let i=0;i<M.n;i++){
+      const Cp=[];C.forEach(p=>M.dom.forEach(v=>{const x=[...p.x,v];const nd={id:nodes.length,x,lvl:i+1,w:M.weight(x),par:p.id};nodes.push(nd);Cp.push(nd);}));
+      steps.push({nodes:nodes.length,keep:{...keep},lvl:i+1,cand:Cp.map(n=>n.id),phase:'extend',note:`<b>Mở rộng</b> tầng ${i+1}: mỗi ứng viên trong C nhận thêm X${i+1} = ${M.dom.join(', ')}, được ${Cp.length} phép gán một phần. Trọng số mới = trọng số cũ × các factor vừa tính được (${i?`t${i} và o${i+1}`:'o1'}).`});
+      const sorted=Cp.slice().sort((a,b)=>b.w-a.w);const kept=sorted.slice(0,K);
+      kept.forEach(n=>keep[n.id]=1);
+      const cut=sorted[K];const tieNote=cut&&cut.w===kept[kept.length-1].w&&cut.w>0?` Có <b>hòa ở ranh giới</b>: ${sorted.filter(n=>n.w===cut.w).map(n=>tup(n.x)).join(', ')} cùng trọng số ${fmt(cut.w)} nhưng chỉ còn chỗ cho ${kept.filter(n=>n.w===cut.w).length}; ta giữ cái sinh ra trước.`:'';
+      C=kept;
+      steps.push({nodes:nodes.length,keep:{...keep},lvl:i+1,cand:Cp.map(n=>n.id),phase:'prune',note:`<b>Cắt tỉa</b>: giữ ${Math.min(K,Cp.length)} phép gán có trọng số lớn nhất: ${kept.map(n=>`${tup(n.x)} = ${fmt(n.w)}`).join(', ')}.${tieNote}`});
+    }
+    const top=C[0];const opt=M.best;
+    const path={};for(let p=top;p;p=p.par!=null?nodes[p.par]:null)path[p.id]=1;
+    steps.push({nodes:nodes.length,keep:{...keep},lvl:M.n,cand:[],path,final:true,note:`Kết quả: <b>${tup(top.x)}</b> với trọng số <b>${fmt(top.w)}</b>. ${top.w===opt.w?`Trùng với phép gán tối ưu ${tup(opt.x)}.`:`Không tối ưu: phép gán tốt nhất là ${tup(opt.x)} với trọng số ${fmt(opt.w)}, nhưng tiền tố của nó đã bị cắt ở một tầng trước.`}`});
+    build.nodes=nodes;return steps;
+  }
+  function render(s){
+    const nodes=build.nodes.slice(0,s.nodes),levels=[];nodes.forEach(n=>(levels[n.lvl]=levels[n.lvl]||[]).push(n));
+    const maxW=Math.max(...levels.map(l=>l.length),3*Math.max(...Ks));const W=Math.max(420,maxW*58+40),H=M.n*86+70;
+    const pos={};levels.forEach((l,d)=>l.forEach((n,i)=>{pos[n.id]=[W/2+(i-(l.length-1)/2)*Math.min(58,(W-40)/l.length),36+d*86];}));
+    const svg=newSvg(ui.viz,W,H);
+    for(let d=1;d<=M.n;d++)haloText(svg,8,36+d*86+4,'X'+d,'t-small t-muted t-b','start');
+    const state=n=>s.keep[n.id]?'keep':(s.phase==='extend'&&s.cand.includes(n.id))?'new':'cut';
+    nodes.forEach(n=>{if(n.par==null)return;const [x1,y1]=pos[n.par],[x2,y2]=pos[n.id];const st_=state(n);
+      S('line',{x1,y1,x2,y2,class:s.path&&s.path[n.id]?'s-edge-path':'s-edge',opacity:st_==='cut'?.25:1},svg);
+      haloText(svg,(x1+x2)/2+(x2<x1?-5:5),(y1+y2)/2,String(n.x[n.x.length-1]),'t-small t-muted',x2<x1?'end':'start');});
+    nodes.forEach(n=>{const [x,y]=pos[n.id];const st_=state(n);const g=S('g',{opacity:st_==='cut'?.3:1},svg);
+      S('circle',{cx:x,cy:y,r:15,class:n.par==null?'s-node':st_==='keep'?'s-explored':st_==='new'?'s-frontier':'s-node'},g);
+      S('text',{x,y:y+4,'text-anchor':'middle',class:'t-small t-b'},g,n.par==null?'{ }':fmt(n.w));
+    });
+    let h='';
+    if(s.cand&&s.cand.length){const cs=s.cand.map(id=>build.nodes[id]).slice().sort((a,b)=>b.w-a.w);
+      h+=`<h5>C′ ở tầng ${s.lvl} (xếp theo trọng số)</h5><table><tr><th>Phép gán</th><th>Trọng số</th><th></th></tr>`;
+      cs.forEach(n=>{const f=M.factors(n.x);h+=`<tr${s.keep[n.id]&&s.phase==='prune'?' class="top"':''}><td>${tup(n.x)}</td><td>${f.map(q=>q.v).join('·')} = <b>${fmt(n.w)}</b></td><td>${s.phase==='prune'?(s.keep[n.id]?'giữ':'cắt'):''}</td></tr>`;});
+      h+='</table>';}
+    else h+=`<h5>Ghi chú</h5><p style="margin:0">Số trong mỗi nút là trọng số của phép gán một phần dẫn tới nút đó; số trên cạnh là giá trị vừa gán.</p>`;
+    if(s.final)h+=`<p style="margin-top:8px">Đường tô xanh: phép gán beam search trả về.</p>`;
+    ui.side.innerHTML=h;ui.note.innerHTML=s.note;
+  }
+  st.set(build());
+}
+
+function icmSim(root,cfg){
+  const M=chainModel(cfg);const inits=cfg.inits||[[0,0,1]];let ini=0;
+  const ui=shell(root,{title:cfg.title||'Iterated conditional modes (ICM)',sub:cfg.sub,legend:'<span><i style="border-color:var(--accent);background:var(--accent-soft)"></i>Biến đang được gán lại và các factor chạm nó</span>'});
+  seg(ui.ctl,inits.map((x,i)=>[String(i),'Bắt đầu '+tup(x)]),'0',v=>{ini=+v;st.set(build());});
+  const st=stepper(ui.ctl,render);
+  const touch=i=>{const f=[`o${i+1}`];if(i>0)f.unshift(`t${i}`);if(i<M.n-1)f.push(`t${i+1}`);return f;};
+  function build(){
+    let x=inits[ini].slice();const steps=[{x:x.slice(),note:`Khởi tạo bằng phép gán đầy đủ ${tup(x)}, trọng số ${M.factors(x).map(f=>f.v).join('·')} = <b>${fmt(M.weight(x))}</b>.`}];
+    for(let pass=1;pass<=10;pass++){let changed=false;
+      for(let i=0;i<M.n;i++){
+        const rows=M.dom.map(v=>{const y=x.slice();y[i]=v;const f=M.factors(y);const loc=f.filter(q=>touch(i).includes(q.nm));return {v,loc,w:M.weight(y),lw:loc.reduce((p,q)=>p*q.v,1)};});
+        const mx=Math.max(...rows.map(r=>r.w));const old=x[i];const nv=rows.find(r=>r.v===old).w===mx?old:rows.find(r=>r.w===mx).v;
+        const ch=nv!==old;if(ch)changed=true;x[i]=nv;
+        steps.push({x:x.slice(),focus:i,rows,pick:nv,pass,note:`Vòng ${pass}, gán lại <b>X${i+1}</b> (giữ nguyên các biến khác). Chỉ các factor chạm X${i+1} (${touch(i).join(', ')}) thay đổi theo v. ${ch?`Chọn X${i+1} = ${nv}: trọng số tăng lên <b>${fmt(M.weight(x))}</b>.`:mx===0?`Mọi lựa chọn đều cho trọng số 0, giữ nguyên X${i+1} = ${old}.`:`Giá trị hiện tại ${old} đã tốt nhất${rows.filter(r=>r.w===mx).length>1?' (hòa thì giữ giá trị cũ)':''}, không đổi.`}`});
+      }
+      if(!changed){steps.push({x:x.slice(),final:true,note:`Cả vòng ${pass} không biến nào đổi: ICM <b>hội tụ</b> ở ${tup(x)} với trọng số <b>${fmt(M.weight(x))}</b>. ${M.weight(x)===M.best.w?'Đây cũng là tối ưu toàn cục.':`Tối ưu toàn cục là ${tup(M.best.x)} với trọng số ${fmt(M.best.w)}: ICM kẹt ở một <b>cực đại địa phương</b>, vì không đổi riêng một biến nào làm trọng số tăng.`}`});break;}
+    }
+    return steps;
+  }
+  function render(s){
+    const W=560,H=200,X=i=>110+i*170,yv=130,yo=46;
+    const svg=newSvg(ui.viz,W,H);const hot=s.focus!=null?touch(s.focus):[];
+    const f=Object.fromEntries(M.factors(s.x).map(q=>[q.nm,q.v]));
+    const sq=(x,y,nm,sub)=>{const on=hot.includes(nm);S('rect',{x:x-15,y:y-15,width:30,height:30,rx:3,class:on?'nd-acc':'nd'},svg);
+      S('text',{x,y:y+5,'text-anchor':'middle',class:'t-b'},svg,String(f[nm]));
+      haloText(svg,x,y-21,nm+(sub||''),'t-small '+(on?'t-acc t-b':'t-muted'));};
+    for(let i=0;i<M.n;i++){S('line',{x1:X(i),y1:yo,x2:X(i),y2:yv,class:'ln-ink'},svg);if(i<M.n-1)S('line',{x1:X(i),y1:yv,x2:X(i+1),y2:yv,class:'ln-ink'},svg);}
+    for(let i=0;i<M.n;i++){sq(X(i),yo,`o${i+1}`,` (đo ${M.obs[i]})`);if(i<M.n-1)sq((X(i)+X(i+1))/2,yv,`t${i+1}`);}
+    for(let i=0;i<M.n;i++){const on=s.focus===i;S('circle',{cx:X(i),cy:yv,r:21,class:on?'nd-acc':'nd'},svg);
+      if(on)S('circle',{cx:X(i),cy:yv,r:27,fill:'none',stroke:'var(--accent)','stroke-width':2,'stroke-dasharray':'5 3'},svg);
+      S('text',{x:X(i),y:yv+6,'text-anchor':'middle',class:'t-big'},svg,String(s.x[i]));haloText(svg,X(i),yv+42,'X'+(i+1),'t-small t-b');}
+    haloText(svg,W-10,H-8,`Weight = ${M.factors(s.x).map(q=>q.v).join('·')} = ${fmt(M.weight(s.x))}`,'t-b','end');
+    let h='';
+    if(s.rows){h+=`<h5>Thử X${s.focus+1} = v</h5><table><tr><th>v</th><th>${touch(s.focus).join('·')}</th><th>Weight</th></tr>`;
+      s.rows.forEach(r=>{h+=`<tr${r.v===s.pick?' class="top"':''}><td>${r.v}</td><td>${r.loc.map(q=>q.v).join('·')} = ${fmt(r.lw)}</td><td><b>${fmt(r.w)}</b></td></tr>`;});
+      h+='</table><p style="color:var(--muted);font-size:.8rem">Cột giữa là tích các factor chạm biến đang xét. Các factor còn lại không đổi theo v, nên so cột giữa cũng đủ để chọn.</p>';}
+    else h+=`<h5>Phép gán hiện tại</h5><p style="margin:0">${tup(s.x)}, trọng số <b>${fmt(M.weight(s.x))}</b></p>`;
+    ui.side.innerHTML=h;ui.note.innerHTML=s.note;
+  }
+  st.set(build());
+}
+
+const REG={graph:graphSim,traverse:traverseSim,game:gameSim,vi:viSim,gd:gdSim,kmeans:kmeansSim,csp:cspSim,beam:beamSim,icm:icmSim};
 function initSims(scope){
   scope.querySelectorAll('.sim[data-sim]').forEach(root=>{
     const sc=root.querySelector('script[type="application/json"]');

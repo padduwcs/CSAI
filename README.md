@@ -10,6 +10,7 @@ Bài giảng Cơ sở Trí tuệ nhân tạo bằng tiếng Việt cho người 
 | 2. Tìm kiếm | Mô hình hóa, DFS/BFS, quy hoạch động · UCS, structured perceptron, A* |
 | 3. Quyết định Markov | MDP và đánh giá chính sách · Value iteration, học tăng cường |
 | 4. Trò chơi | Expectimax, minimax · Alpha-beta, TD learning, trò chơi đồng thời |
+| 5. Thỏa mãn ràng buộc | Mô hình dựa trên biến, factor graph · Backtracking, arc consistency, beam search, local search |
 
 Mỗi thuật toán được giảng theo mạch: bài toán → ý tưởng → cơ chế → ví dụ tính tay → tính chất → so sánh, kèm mô phỏng chạy từng bước ngay trên trang.
 

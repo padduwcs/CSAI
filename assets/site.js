@@ -13,7 +13,10 @@
       {id:'mdp-2',file:'mdp-2-value-iteration-rl.html',num:'3.2',title:'Value iteration và học tăng cường'}]},
     {name:'Chương 4 · Trò chơi',lessons:[
       {id:'games-1',file:'games-1-minimax.html',num:'4.1',title:'Mô hình trò chơi, expectimax, minimax'},
-      {id:'games-2',file:'games-2-alphabeta-td.html',num:'4.2',title:'Hàm đánh giá, alpha-beta, TD learning, trò chơi đồng thời'}]}
+      {id:'games-2',file:'games-2-alphabeta-td.html',num:'4.2',title:'Hàm đánh giá, alpha-beta, TD learning, trò chơi đồng thời'}]},
+    {name:'Chương 5 · Thỏa mãn ràng buộc',lessons:[
+      {id:'csp-1',file:'csp-1-factor-graph.html',num:'5.1',title:'Mô hình dựa trên biến và factor graph'},
+      {id:'csp-2',file:'csp-2-backtracking-local.html',num:'5.2',title:'Backtracking, arc consistency, beam search, local search'}]}
   ];
   const ALL=CHAPTERS.flatMap(c=>c.lessons);
   window.CSAI_CHAPTERS=CHAPTERS;
